@@ -11,8 +11,13 @@ python = ">=3.10,<3.13"
 numba = "^0.60.0"
 numpy = "*"
 
-[tool.poetry.group.dev.dependencies]
+# dev extras
 pytest = "^8.3.3"
+
+# Use the "extras" feature to allow testing with different versions
+# of numpy via github actions.
+[tool.poetry.extras]
+dev = ["pytest"]
 
 # https://pypi.org/project/poetry-dynamic-versioning/
 [tool.poetry-dynamic-versioning]
