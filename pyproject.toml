@@ -12,7 +12,7 @@ numba = "^0.60.0"
 numpy = "*"
 
 # dev extras
-pytest = "^8.3.3"
+pytest = "*"
 
 # Use the "extras" feature to allow testing with different versions
 # of numpy via github actions.
