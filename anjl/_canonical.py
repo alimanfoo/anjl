@@ -2,12 +2,11 @@ import numpy as np
 import numba  # type: ignore
 
 
-# TODO Add support for progress bars.
-# TODO Add implementation of garbage collection.
-
-
 def canonical_nj(
-    D, disallow_negative_distances=True, progress=None, progress_options={}
+    D,
+    disallow_negative_distances=True,
+    progress=None,
+    progress_options={},
 ):
     """TODO"""
 
@@ -51,13 +50,13 @@ def canonical_nj(
     # Begin iterating.
     for iteration in iterator:
         # Perform one iteration of the neighbour-joining algorithm.
-        _canonical_nj(
+        _canonical_nj_iteration(
             iteration=iteration,
             D=D,
-            index_to_id=index_to_id,
-            Z=Z,
             U=U,
+            index_to_id=index_to_id,
             obsolete=obsolete,
+            Z=Z,
             n_original=n_original,
             disallow_negative_distances=disallow_negative_distances,
         )
@@ -66,13 +65,13 @@ def canonical_nj(
 
 
 @numba.njit
-def _canonical_nj(
+def _canonical_nj_iteration(
     iteration,
     D,
-    index_to_id,
-    Z,
     U,
+    index_to_id,
     obsolete,
+    Z,
     n_original,
     disallow_negative_distances,
 ):
@@ -135,8 +134,8 @@ def _canonical_nj(
     if n_remaining > 2:
         # Update data structures.
         _canonical_nj_update(
-            U=U,
             D=D,
+            U=U,
             index_to_id=index_to_id,
             obsolete=obsolete,
             node_id=node_id,
