@@ -1,5 +1,5 @@
 import numpy as np
-import numba
+import numba  # type: ignore
 
 
 # TODO Add support for progress bars.

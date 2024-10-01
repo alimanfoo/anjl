@@ -10,10 +10,20 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
-            - uses: actions/setup-python@v5
             - uses: pre-commit/action@v3.0.0
-            - name: Install mypy
-              run: pipx install mypy
+
+            - name: Install poetry
+              run: pipx install poetry
+
+            - name: Setup python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: '3.12'
+                  cache: 'poetry'
+
+            - name: Install dependencies
+              run: poetry install
+
             - name: Run mypy
               run: |
-                  mypy anjl tests
+                  poetry run mypy anjl tests
