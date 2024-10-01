@@ -31,7 +31,7 @@ There are implementations of neighbour-joining available in
 and
 [biotite](https://www.biotite-python.org/latest/apidoc/biotite.sequence.phylo.neighbor_joining.html),
 but they are relatively slow for larger numbers of nodes. I created
-this package to provide a faster implementation for use in population
+this package to provide faster implementations for use in population
 genomics.
 
 Bug reports and suggestions are welcome but I make no promises
