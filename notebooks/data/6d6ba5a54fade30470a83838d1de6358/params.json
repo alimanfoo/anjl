@@ -1,0 +1,27 @@
+{
+    "aim_analysis": "20220528",
+    "cohort_size": null,
+    "cohorts_analysis": "20240717",
+    "max_cohort_size": null,
+    "max_missing_an": 0.001,
+    "metric": "cityblock",
+    "min_cohort_size": null,
+    "min_minor_ac": 0.01,
+    "n_snps": 1000,
+    "random_seed": 42,
+    "region": {
+        "contig": "3L",
+        "end": 20100000,
+        "start": 20000000
+    },
+    "sample_indices": null,
+    "sample_sets": [
+        "AG1000G-BF-A",
+        "AG1000G-BF-B",
+        "AG1000G-CM-A"
+    ],
+    "site_class": null,
+    "site_filters_analysis": "dt_20200416",
+    "site_mask": "gamb_colu",
+    "thin_offset": 0
+}
