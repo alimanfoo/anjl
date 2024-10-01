@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "anjl"
+version = "0.0.0"
+description = "A neighbour-joining library for Python."
+authors = ["Alistair Miles <alimanfoo@googlemail.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.13"
+numba = "^0.60.0"
+numpy = "*"
+
+# dev extras
+pytest = "*"
+
+# Use the "extras" feature to allow testing with different versions
+# of numpy via github actions.
+[tool.poetry.extras]
+dev = ["pytest"]
+
+# https://pypi.org/project/poetry-dynamic-versioning/
+[tool.poetry-dynamic-versioning]
+enable = true
+[build-system]
+requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning>=1.0.0,<2.0.0"]
+build-backend = "poetry_dynamic_versioning.backend"

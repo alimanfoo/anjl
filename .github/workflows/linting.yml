@@ -1,0 +1,19 @@
+name: linting
+on:
+    pull_request:
+        branches:
+            - main
+jobs:
+    linting:
+        strategy:
+            fail-fast: true
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-python@v5
+            - uses: pre-commit/action@v3.0.0
+            - name: Install mypy
+              run: pipx install mypy
+            - name: Run mypy
+              run: |
+                  mypy anjl tests
