@@ -114,6 +114,12 @@ def _canonical_nj_iteration(
     assert id_j >= 0
     assert id_i != id_j
 
+    # Stabilise ordering for easier comparisons.
+    if id_i > id_j:
+        id_i, id_j = id_j, id_i
+        i_min, j_min = j_min, i_min
+        d_i, d_j = d_j, d_i
+
     # Get number of leaves.
     if id_i < n_original:
         leaves_i = 1
