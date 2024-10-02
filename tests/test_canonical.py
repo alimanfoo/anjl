@@ -35,38 +35,6 @@ def validate_nj_result(Z, D):
     assert int(Z[-1, 4]) == n_original
 
 
-def test_wikipedia():
-    # This example comes from the wikipedia page on neighbour-joining.
-    # https://en.wikipedia.org/wiki/Neighbor_joining#Example
-
-    D = np.array(
-        [  # a b c d e
-            [0, 5, 9, 9, 8],
-            [5, 0, 10, 10, 9],
-            [9, 10, 0, 8, 7],
-            [9, 10, 8, 0, 3],
-            [8, 9, 7, 3, 0],
-        ],
-        dtype=np.float32,
-    )
-    Z = anjl.canonical_nj(D)
-    validate_nj_result(Z, D)
-
-    # First iteration.
-    left, right, ldist, rdist, leaves = Z[0]
-    # Expect nodes 0 and 1 to be joined.
-    assert int(left) == 0
-    assert int(right) == 1
-    # Expect distances are 2 and 3 respectively.
-    assert_allclose(ldist, 2)
-    assert_allclose(rdist, 3)
-    # Expect 2 leaves in the clade.
-    assert int(leaves) == 2
-
-    # Further iterations cannot be tested because there are
-    # different ways the remaining nodes could be joined.
-
-
 def test_amelia_harrison():
     # This example comes from Amelia Harrison's blog.
     # https://www.tenderisthebyte.com/blog/2022/08/31/neighbor-joining-trees/
@@ -115,3 +83,35 @@ def test_amelia_harrison():
     assert_allclose(ldist, 3.5)
     assert_allclose(rdist, 3.5)
     assert int(leaves) == 4
+
+
+def test_wikipedia():
+    # This example comes from the wikipedia page on neighbour-joining.
+    # https://en.wikipedia.org/wiki/Neighbor_joining#Example
+
+    D = np.array(
+        [  # a b c d e
+            [0, 5, 9, 9, 8],
+            [5, 0, 10, 10, 9],
+            [9, 10, 0, 8, 7],
+            [9, 10, 8, 0, 3],
+            [8, 9, 7, 3, 0],
+        ],
+        dtype=np.float32,
+    )
+    Z = anjl.canonical_nj(D)
+    validate_nj_result(Z, D)
+
+    # First iteration.
+    left, right, ldist, rdist, leaves = Z[0]
+    # Expect nodes 0 and 1 to be joined.
+    assert int(left) == 0
+    assert int(right) == 1
+    # Expect distances are 2 and 3 respectively.
+    assert_allclose(ldist, 2)
+    assert_allclose(rdist, 3)
+    # Expect 2 leaves in the clade.
+    assert int(leaves) == 2
+
+    # Further iterations cannot be tested because there are
+    # different ways the remaining nodes could be joined.
