@@ -26,6 +26,7 @@ class Node:
 
 
 def to_tree(Z, distance_sort=False, count_sort=False, rd=False):
+    """TODO"""
     n_internal = Z.shape[0]
     n_original = n_internal + 1
     n_nodes = n_original + n_internal

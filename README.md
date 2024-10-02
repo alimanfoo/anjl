@@ -17,10 +17,16 @@ pip install anjl
 import anjl
 ```
 
-### Canonical neighbour-joining
+### Canonical neighbour-joining implementation
 
 ```python
 help(anjl.canonical_nj)
+```
+
+### Convert to tree-like data structure
+
+```python
+help(anjl.to_tree)
 ```
 
 ## About
