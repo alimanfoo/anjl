@@ -110,7 +110,8 @@ def test_amelia_harrison():
     assert int(right) == 5
     # N.B., we handle termination by placing the final
     # (root) node at the midpoint between the last two
-    # children.
+    # children. This is equivalent to placing an edge
+    # directly between the last two children.
     assert_allclose(ldist, 3.5)
     assert_allclose(rdist, 3.5)
     assert int(leaves) == 4
