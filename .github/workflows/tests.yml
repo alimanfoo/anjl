@@ -29,5 +29,5 @@ jobs:
       - name: Install package
         run: pip install "${{ matrix.numpy-version }}" .[dev]
 
-      - name: Run fast unit tests
+      - name: Run unit tests
         run: pytest -v tests
