@@ -36,8 +36,12 @@ def plot_equal_angle(
     )
 
     # TODO Color the edges.
-    # TODO Support hover name.
-    # TODO Support hover data.
+    # TODO Support hover_name.
+    # TODO Support hover_data.
+    # TODO Support color_discrete_map.
+    # TODO Support category_orders (ordering the legend).
+    # TODO Support edge_legend.
+    # TODO Support leaf_legend.
 
     # Decorate the leaf nodes.
     if leaf_data is not None:
