@@ -1,4 +1,4 @@
-# anjl - A neighbour-joining library for Python
+# anjl - A neighbour-joining library for Python :angel:
 
 `anjl` is a Python package providing implementations of the
 [neighbour-joining
@@ -47,4 +47,4 @@ this package to provide faster implementations for use in population
 genomics.
 
 Bug reports, suggestions and pull requests are welcome but I make no promises
-regarding support, please be patient and understanding!
+regarding support, please be patient and understanding! 🌻🌼🌸
