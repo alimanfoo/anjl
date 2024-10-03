@@ -29,6 +29,12 @@ help(anjl.canonical_nj)
 help(anjl.to_tree)
 ```
 
+### Plot a tree using the equal-angles layout
+
+```python
+help(anjl.plot_equal_angles)
+```
+
 ## About
 
 There are implementations of neighbour-joining available in
@@ -40,5 +46,5 @@ but they are relatively slow for larger numbers of nodes. I created
 this package to provide faster implementations for use in population
 genomics.
 
-Bug reports and suggestions are welcome but I make no promises
+Bug reports, suggestions and pull requests are welcome but I make no promises
 regarding support, please be patient and understanding!
