@@ -26,7 +26,7 @@ def test_amelia_harrison():
     root = anjl.to_tree(Z)
     assert isinstance(root, anjl.Node)
     assert root.id == n_nodes - 1
-    assert root.dist is None
+    assert root.dist == 0
     assert root.count == n_original
     assert not root.is_leaf
 
@@ -81,12 +81,12 @@ def test_amelia_harrison():
     assert right.right is None
 
     # String representation.
-    expected_repr = "Node(id=6, dist=None, count=4)"
+    expected_repr = "Node(id=6, dist=0, count=4)"
     assert repr(root) == expected_repr
 
     # String value.
     expected_str = dedent("""
-        Node(id=6, dist=None, count=4)
+        Node(id=6, dist=0, count=4)
             Node(id=3, dist=3.5, count=1)
             Node(id=5, dist=3.5, count=3)
                 Node(id=2, dist=2.0, count=1)
