@@ -35,6 +35,10 @@ def plot_equal_angle(
         count_sort=count_sort,
     )
 
+    # TODO Color the edges.
+    # TODO Support hover name.
+    # TODO Support hover data.
+
     # Decorate the leaf nodes.
     if leaf_data is not None:
         df_leaf_nodes = (
