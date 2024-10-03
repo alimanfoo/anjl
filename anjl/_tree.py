@@ -1,12 +1,15 @@
-class Node:
-    def __init__(self, id):
-        self.id = id
-        self.left = None
-        self.right = None
-        self.dist = None  # distance to parent
-        self.count = 1  # leaf count
+import numpy as np
 
-    def to_string(self, indent=""):
+
+class Node:
+    def __init__(self, id: int):
+        self.id: int = id
+        self.left: Node | None = None
+        self.right: Node | None = None
+        self.dist: int | float = 0  # distance to parent
+        self.count: int = 1  # leaf count
+
+    def to_string(self, indent: str = "") -> str:
         s = indent + repr(self) + "\n"
         if self.left:
             s += self.left.to_string(indent=indent + "    ")
@@ -14,18 +17,25 @@ class Node:
             s += self.right.to_string(indent=indent + "    ")
         return s
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.to_string().strip()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Node(id={self.id}, dist={self.dist}, count={self.count})"
 
     @property
-    def is_leaf(self):
+    def is_leaf(self) -> bool:
         return self.count == 1
 
+    @property
+    def children(self) -> tuple["Node", "Node"] | None:
+        if self.left and self.right:
+            return (self.left, self.right)
+        else:
+            return None
 
-def to_tree(Z, distance_sort=False, count_sort=False, rd=False):
+
+def to_tree(Z: np.ndarray, rd: bool = False) -> Node | tuple[Node, list[Node]]:
     """TODO"""
     n_internal = Z.shape[0]
     n_original = n_internal + 1
@@ -52,20 +62,6 @@ def to_tree(Z, distance_sort=False, count_sort=False, rd=False):
         # Set distances for the children
         left.dist = float(left_dist)
         right.dist = float(right_dist)
-
-    if distance_sort:
-        for node in nodes:
-            if node.left:
-                left, right = sorted([node.left, node.right], key=lambda c: c.dist)
-                node.left = left
-                node.right = right
-
-    if count_sort:
-        for node in nodes:
-            if node.left:
-                left, right = sorted([node.left, node.right], key=lambda c: c.count)
-                node.left = left
-                node.right = right
 
     root = nodes[-1]
 
