@@ -24,6 +24,11 @@ class Node:
     def is_leaf(self):
         return self.count == 1
 
+    @property
+    def children(self):
+        if not self.is_leaf:
+            return (self.left, self.right)
+
 
 def to_tree(Z, distance_sort=False, count_sort=False, rd=False):
     """TODO"""
