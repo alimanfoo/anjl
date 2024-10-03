@@ -117,15 +117,3 @@ def test_amelia_harrison():
             assert node.is_leaf
             assert node.left is None
             assert node.right is None
-
-    # Count sort.
-    _, nodes = anjl.to_tree(Z, rd=True, count_sort=True)
-    for node in nodes:
-        if not node.is_leaf:
-            assert node.left.count <= node.right.count
-
-    # Distance sort.
-    _, nodes = anjl.to_tree(Z, rd=True, distance_sort=True)
-    for node in nodes:
-        if not node.is_leaf:
-            assert node.left.dist <= node.right.dist

@@ -12,10 +12,11 @@ def plot_equal_angle(
     arc_stop=2 * math.pi,
     distance_sort=False,
     count_sort=False,
-    line_width=0.5,
+    line_width=1,
     marker_size=5,
-    width=800,
+    width=700,
     height=600,
+    render_mode="auto",
 ):
     _, df_leaf_nodes, df_edges = layout_equal_angle(
         tree=tree,
@@ -34,6 +35,7 @@ def plot_equal_angle(
         y="y",
         hover_name=None,
         hover_data=None,
+        render_mode=render_mode,
     )
 
     # Draw the leaves.
@@ -43,6 +45,7 @@ def plot_equal_angle(
         y="y",
         hover_name="id",
         hover_data=None,
+        render_mode=render_mode,
     )
 
     # Combine traces into a single figure.

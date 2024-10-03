@@ -30,7 +30,7 @@ class Node:
             return (self.left, self.right)
 
 
-def to_tree(Z, distance_sort=False, count_sort=False, rd=False):
+def to_tree(Z, rd=False):
     """TODO"""
     n_internal = Z.shape[0]
     n_original = n_internal + 1
@@ -57,20 +57,6 @@ def to_tree(Z, distance_sort=False, count_sort=False, rd=False):
         # Set distances for the children
         left.dist = float(left_dist)
         right.dist = float(right_dist)
-
-    if distance_sort:
-        for node in nodes:
-            if node.left:
-                left, right = sorted([node.left, node.right], key=lambda c: c.dist)
-                node.left = left
-                node.right = right
-
-    if count_sort:
-        for node in nodes:
-            if node.left:
-                left, right = sorted([node.left, node.right], key=lambda c: c.count)
-                node.left = left
-                node.right = right
 
     root = nodes[-1]
 

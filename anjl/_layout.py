@@ -11,6 +11,8 @@ def layout_equal_angle(
     distance_sort=False,
     count_sort=False,
 ):
+    """TODO"""
+
     # Set up outputs.
     internal_nodes = []
     leaf_nodes = []
