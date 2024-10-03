@@ -1,13 +1,15 @@
+from typing import Callable
+from collections.abc import Mapping
 import numpy as np
-import numba  # type: ignore
+import numba
 
 
 def canonical_nj(
-    D,
-    disallow_negative_distances=True,
-    progress=None,
-    progress_options={},
-):
+    D: np.ndarray,
+    disallow_negative_distances: bool = True,
+    progress: Callable | None = None,
+    progress_options: Mapping = {},
+) -> np.ndarray:
     """TODO"""
 
     # Make a copy of distance matrix D because we will overwrite it during
@@ -66,15 +68,15 @@ def canonical_nj(
 
 @numba.njit
 def _canonical_nj_iteration(
-    iteration,
-    D,
-    U,
-    index_to_id,
-    obsolete,
-    Z,
-    n_original,
-    disallow_negative_distances,
-):
+    iteration: int,
+    D: np.ndarray,
+    U: np.ndarray,
+    index_to_id: np.ndarray,
+    obsolete: np.ndarray,
+    Z: np.ndarray,
+    n_original: int,
+    disallow_negative_distances: bool,
+) -> None:
     # This will be the identifier for the new node to be created in this
     # iteration.
     node_id = iteration + n_original
@@ -151,7 +153,9 @@ def _canonical_nj_iteration(
 
 
 @numba.njit
-def _canonical_nj_search(D, U, obsolete, n):
+def _canonical_nj_search(
+    D: np.ndarray, U: np.ndarray, obsolete: np.ndarray, n: int
+) -> tuple[int, int]:
     # Search for the closest pair of neighbouring nodes to join.
     q_min = np.inf
     i_min = -1
@@ -174,7 +178,15 @@ def _canonical_nj_search(D, U, obsolete, n):
 
 
 @numba.njit
-def _canonical_nj_update(D, U, index_to_id, obsolete, node_id, i_min, j_min):
+def _canonical_nj_update(
+    D: np.ndarray,
+    U: np.ndarray,
+    index_to_id: np.ndarray,
+    obsolete: np.ndarray,
+    node_id: int,
+    i_min: int,
+    j_min: int,
+) -> None:
     # Here we obsolete the row and column corresponding to the node at j_min,
     # and we reuse the row and column at i_min for the new node.
     obsolete[j_min] = True

@@ -1,22 +1,23 @@
 import math
 import pandas as pd
+from ._tree import Node
 
 
 def layout_equal_angle(
-    tree,
-    center_x=0,
-    center_y=0,
-    arc_start=0,
-    arc_stop=2 * math.pi,
-    distance_sort=False,
-    count_sort=False,
-):
+    tree: Node,
+    center_x: int | float = 0,
+    center_y: int | float = 0,
+    arc_start: int | float = 0,
+    arc_stop: int | float = 2 * math.pi,
+    distance_sort: bool = False,
+    count_sort: bool = False,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """TODO"""
 
     # Set up outputs.
-    internal_nodes = []
-    leaf_nodes = []
-    edges = []
+    internal_nodes: list[tuple] = []
+    leaf_nodes: list[tuple] = []
+    edges: list[tuple] = []
 
     # Begin recursion.
     _layout_equal_angle(
@@ -44,20 +45,20 @@ def layout_equal_angle(
 
 def _layout_equal_angle(
     *,
-    node,
-    x,
-    y,
-    arc_start,
-    arc_stop,
-    distance_sort,
-    count_sort,
-    internal_nodes,
-    leaf_nodes,
-    edges,
-):
+    node: Node,
+    x: int | float,
+    y: int | float,
+    arc_start: int | float,
+    arc_stop: int | float,
+    distance_sort: bool,
+    count_sort: bool,
+    internal_nodes: list[tuple],
+    leaf_nodes: list[tuple],
+    edges: list[tuple],
+) -> None:
     if node.children:
         # Store internal node coordinates.
-        internal_nodes.append([x, y, node.id])
+        internal_nodes.append((x, y, node.id))
 
         # Count leaves (descendants).
         leaf_count = node.count
@@ -68,7 +69,7 @@ def _layout_equal_angle(
         elif count_sort:
             children = sorted(node.children, key=lambda c: c.count)
         else:
-            children = node.children
+            children = list(node.children)
 
         # Iterate over children, dividing up the current arc into
         # segments of size proportional to the number of leaves in
@@ -91,9 +92,9 @@ def _layout_equal_angle(
             child_y = y + distance * math.cos(child_angle)
 
             # Add edge.
-            edges.append([x, y])
-            edges.append([child_x, child_y])
-            edges.append([None, None])
+            edges.append((x, y))
+            edges.append((child_x, child_y))
+            edges.append((None, None))
 
             # Recurse to layout the child.
             _layout_equal_angle(
@@ -113,4 +114,4 @@ def _layout_equal_angle(
             child_arc_start = child_arc_stop
 
     else:
-        leaf_nodes.append([x, y, node.id])
+        leaf_nodes.append((x, y, node.id))

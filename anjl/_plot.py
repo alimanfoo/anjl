@@ -1,23 +1,25 @@
+import math
+from typing import Literal
 import plotly.express as px
 import plotly.graph_objects as go
-import math
+from ._tree import Node
 from ._layout import layout_equal_angle
 
 
 def plot_equal_angle(
-    tree,
-    center_x=0,
-    center_y=0,
-    arc_start=0,
-    arc_stop=2 * math.pi,
-    distance_sort=False,
-    count_sort=False,
-    line_width=1,
-    marker_size=5,
-    width=700,
-    height=600,
-    render_mode="auto",
-):
+    tree: Node,
+    center_x: int | float = 0,
+    center_y: int | float = 0,
+    arc_start: int | float = 0,
+    arc_stop: int | float = 2 * math.pi,
+    distance_sort: bool = False,
+    count_sort: bool = False,
+    line_width: int | float = 1,
+    marker_size: int | float = 5,
+    width: int | float = 700,
+    height: int | float = 600,
+    render_mode: Literal["auto", "svg", "webgl"] = "auto",
+) -> go.Figure:
     _, df_leaf_nodes, df_edges = layout_equal_angle(
         tree=tree,
         center_x=center_x,

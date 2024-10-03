@@ -51,3 +51,7 @@ warn_unused_configs = true
 [[tool.mypy.overrides]]
 module = "plotly.*"
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "numba"
+ignore_missing_imports = true
