@@ -1,13 +1,17 @@
 import math
-from typing import Literal
+from typing import Literal, Any
 import plotly.express as px
 import plotly.graph_objects as go
+import pandas as pd
 from ._tree import Node
 from ._layout import layout_equal_angle
 
 
 def plot_equal_angle(
     tree: Node,
+    leaf_data: pd.DataFrame | None = None,
+    color: Any = None,
+    symbol: Any = None,
     center_x: int | float = 0,
     center_y: int | float = 0,
     arc_start: int | float = 0,
@@ -19,6 +23,7 @@ def plot_equal_angle(
     width: int | float = 700,
     height: int | float = 600,
     render_mode: Literal["auto", "svg", "webgl"] = "auto",
+    legend_sizing: Literal["constant", "trace"] = "constant",
 ) -> go.Figure:
     _, df_leaf_nodes, df_edges = layout_equal_angle(
         tree=tree,
@@ -29,6 +34,12 @@ def plot_equal_angle(
         distance_sort=distance_sort,
         count_sort=count_sort,
     )
+
+    # Decorate the leaf nodes.
+    if leaf_data is not None:
+        df_leaf_nodes = (
+            df_leaf_nodes.set_index("id").join(leaf_data, how="left").reset_index()
+        )
 
     # Draw the edges.
     fig1 = px.line(
@@ -47,6 +58,8 @@ def plot_equal_angle(
         y="y",
         hover_name="id",
         hover_data=None,
+        color=color,
+        symbol=symbol,
         render_mode=render_mode,
     )
 
@@ -65,6 +78,7 @@ def plot_equal_angle(
         width=width,
         height=height,
         template="simple_white",
+        legend=dict(itemsizing=legend_sizing, tracegroupgap=0),
     )
 
     # Style the axes.
