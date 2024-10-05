@@ -31,19 +31,19 @@ def layout_equal_angle(
 
     # Initialise the stack, first task is to position the root node.
     stack = [
-        dict(
-            node=root,
-            x=center_x,
-            y=center_y,
-            arc_start=arc_start,
-            arc_stop=arc_stop,
+        (
+            root,
+            float(center_x),
+            float(center_y),
+            float(arc_start),
+            float(arc_stop),
         )
     ]
 
     # Start processing.
     while stack:
         # Access the next node to process.
-        task = stack.pop()
+        (node, node_x, node_y, node_arc_start, node_arc_stop) = stack.pop()
 
         # Process the node.
         _layout_equal_angle(
@@ -54,7 +54,11 @@ def layout_equal_angle(
             distance_sort=distance_sort,
             count_sort=count_sort,
             stack=stack,
-            **task,
+            node=node,
+            x=node_x,
+            y=node_y,
+            arc_start=node_arc_start,
+            arc_stop=node_arc_stop,
         )
 
     # Load results into dataframes.
@@ -77,10 +81,10 @@ def _layout_equal_angle(
     distance_sort: bool,
     count_sort: bool,
     stack: list[tuple],
-    x: int | float,
-    y: int | float,
-    arc_start: int | float,
-    arc_stop: int | float,
+    x: float,
+    y: float,
+    arc_start: float,
+    arc_stop: float,
 ) -> None:
     # Total number of internal nodes.
     n_internal = Z.shape[0]
@@ -147,12 +151,12 @@ def _layout_equal_angle(
 
             # Add a task to layout the child.
             stack.append(
-                dict(
-                    node=child,
-                    x=child_x,
-                    y=child_y,
-                    arc_start=child_arc_start,
-                    arc_stop=child_arc_stop,
+                (
+                    child,
+                    child_x,
+                    child_y,
+                    child_arc_start,
+                    child_arc_stop,
                 )
             )
 
