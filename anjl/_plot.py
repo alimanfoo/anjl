@@ -2,13 +2,13 @@ import math
 from typing import Literal, Any
 import plotly.express as px
 import plotly.graph_objects as go
+import numpy as np
 import pandas as pd
-from ._tree import Node
 from ._layout import layout_equal_angle
 
 
 def plot_equal_angle(
-    tree: Node,
+    Z: np.ndarray,
     leaf_data: pd.DataFrame | None = None,
     color: Any = None,
     symbol: Any = None,
@@ -26,7 +26,7 @@ def plot_equal_angle(
     legend_sizing: Literal["constant", "trace"] = "constant",
 ) -> go.Figure:
     _, df_leaf_nodes, df_edges = layout_equal_angle(
-        tree=tree,
+        Z=Z,
         center_x=center_x,
         center_y=center_y,
         arc_start=arc_start,

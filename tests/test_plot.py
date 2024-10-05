@@ -17,8 +17,7 @@ def test_amelia_harrison():
         dtype=np.float32,
     )
     Z = anjl.canonical_nj(D)
-    tree = anjl.to_tree(Z)
-    fig = anjl.plot_equal_angle(tree)
+    fig = anjl.plot_equal_angle(Z)
     assert isinstance(fig, go.Figure)
 
 
@@ -37,6 +36,5 @@ def test_wikipedia():
         dtype=np.float32,
     )
     Z = anjl.canonical_nj(D)
-    tree = anjl.to_tree(Z)
-    fig = anjl.plot_equal_angle(tree)
+    fig = anjl.plot_equal_angle(Z)
     assert isinstance(fig, go.Figure)

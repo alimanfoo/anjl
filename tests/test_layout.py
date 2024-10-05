@@ -38,8 +38,7 @@ def test_amelia_harrison():
         dtype=np.float32,
     )
     Z = anjl.canonical_nj(D)
-    tree = anjl.to_tree(Z)
-    df_internal_nodes, df_leaf_nodes, df_edges = anjl.layout_equal_angle(tree)
+    df_internal_nodes, df_leaf_nodes, df_edges = anjl.layout_equal_angle(Z)
     validate_layout_result(
         D=D,
         Z=Z,
@@ -64,8 +63,7 @@ def test_wikipedia():
         dtype=np.float32,
     )
     Z = anjl.canonical_nj(D)
-    tree = anjl.to_tree(Z)
-    df_internal_nodes, df_leaf_nodes, df_edges = anjl.layout_equal_angle(tree)
+    df_internal_nodes, df_leaf_nodes, df_edges = anjl.layout_equal_angle(Z)
     validate_layout_result(
         D=D,
         Z=Z,
