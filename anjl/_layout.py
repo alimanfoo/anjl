@@ -1,10 +1,10 @@
 import math
+import numpy as np
 import pandas as pd
-from ._tree import Node
 
 
 def layout_equal_angle(
-    tree: Node,
+    Z: np.ndarray,
     center_x: int | float = 0,
     center_y: int | float = 0,
     arc_start: int | float = 0,
@@ -19,19 +19,47 @@ def layout_equal_angle(
     leaf_nodes: list[tuple] = []
     edges: list[tuple] = []
 
-    # Begin recursion.
-    _layout_equal_angle(
-        node=tree,
-        x=center_x,
-        y=center_y,
-        arc_start=arc_start,
-        arc_stop=arc_stop,
-        distance_sort=distance_sort,
-        count_sort=count_sort,
-        internal_nodes=internal_nodes,
-        leaf_nodes=leaf_nodes,
-        edges=edges,
-    )
+    # Total number of internal nodes.
+    n_internal = Z.shape[0]
+
+    # Total number of leaf nodes.
+    n_original = n_internal + 1
+
+    # Set up the first node to visit, which will be the
+    # root node.
+    root = n_original + n_internal - 1
+
+    # Initialise the stack, first task is to position the root node.
+    stack = [
+        (
+            root,
+            float(center_x),
+            float(center_y),
+            float(arc_start),
+            float(arc_stop),
+        )
+    ]
+
+    # Start processing.
+    while stack:
+        # Access the next node to process.
+        (node, node_x, node_y, node_arc_start, node_arc_stop) = stack.pop()
+
+        # Process the node.
+        _layout_equal_angle(
+            Z=Z,
+            leaf_nodes=leaf_nodes,
+            internal_nodes=internal_nodes,
+            edges=edges,
+            distance_sort=distance_sort,
+            count_sort=count_sort,
+            stack=stack,
+            node=node,
+            x=node_x,
+            y=node_y,
+            arc_start=node_arc_start,
+            arc_stop=node_arc_stop,
+        )
 
     # Load results into dataframes.
     df_internal_nodes = pd.DataFrame.from_records(
@@ -45,73 +73,92 @@ def layout_equal_angle(
 
 def _layout_equal_angle(
     *,
-    node: Node,
-    x: int | float,
-    y: int | float,
-    arc_start: int | float,
-    arc_stop: int | float,
+    node: int,
+    Z: np.ndarray,
+    leaf_nodes: list[tuple],
+    internal_nodes: list[tuple],
+    edges: list[tuple],
     distance_sort: bool,
     count_sort: bool,
-    internal_nodes: list[tuple],
-    leaf_nodes: list[tuple],
-    edges: list[tuple],
+    stack: list[tuple],
+    x: float,
+    y: float,
+    arc_start: float,
+    arc_stop: float,
 ) -> None:
-    if node.children:
-        # Store internal node coordinates.
-        internal_nodes.append((x, y, node.id))
+    # Total number of internal nodes.
+    n_internal = Z.shape[0]
 
-        # Count leaves (descendants).
-        leaf_count = node.count
+    # Total number of leaf nodes.
+    n_original = n_internal + 1
+
+    if node < n_original:
+        # Leaf node.
+        leaf_nodes.append((x, y, node))
+
+    else:
+        # Internal node.
+        z = node - n_original
+
+        # Access data for this node and its children.
+        left = int(Z[z, 0])
+        right = int(Z[z, 1])
+        ldist = Z[z, 2]
+        rdist = Z[z, 3]
+        leaf_count = int(Z[z, 4])
+        if left < n_original:
+            lcount = 1
+        else:
+            lcount = int(Z[left - n_original, 4])
+        if right < n_original:
+            rcount = 1
+        else:
+            rcount = int(Z[right - n_original, 4])
+
+        # Store internal node coordinates.
+        internal_nodes.append((x, y, node))
+
+        # Set up convenience variable.
+        children = [(left, ldist, lcount), (right, rdist, rcount)]
 
         # Sort the subtrees.
-        if distance_sort:
-            children = sorted(node.children, key=lambda c: c.dist)
-        elif count_sort:
-            children = sorted(node.children, key=lambda c: c.count)
-        else:
-            children = list(node.children)
+        if distance_sort and rdist < ldist:
+            children.reverse()
+        elif count_sort and rcount < lcount:
+            children.reverse()
 
         # Iterate over children, dividing up the current arc into
         # segments of size proportional to the number of leaves in
         # the subtree.
         arc_size = arc_stop - arc_start
         child_arc_start = arc_start
-        for child in children:
+        for child, child_dist, child_count in children:
             # Define a segment of the arc for this child.
-            child_arc_size = arc_size * child.count / leaf_count
+            child_arc_size = arc_size * child_count / leaf_count
             child_arc_stop = child_arc_start + child_arc_size
 
             # Define the angle at which this child will be drawn.
             child_angle = child_arc_start + child_arc_size / 2
 
-            # Access the distance at which to draw this child.
-            distance = child.dist
-
             # Now use trigonometry to calculate coordinates for this child.
-            child_x = x + distance * math.sin(child_angle)
-            child_y = y + distance * math.cos(child_angle)
+            child_x = x + child_dist * math.sin(child_angle)
+            child_y = y + child_dist * math.cos(child_angle)
 
             # Add edge.
             edges.append((x, y))
             edges.append((child_x, child_y))
             edges.append((None, None))
 
-            # Recurse to layout the child.
-            _layout_equal_angle(
-                node=child,
-                x=child_x,
-                y=child_y,
-                internal_nodes=internal_nodes,
-                leaf_nodes=leaf_nodes,
-                edges=edges,
-                arc_start=child_arc_start,
-                arc_stop=child_arc_stop,
-                count_sort=count_sort,
-                distance_sort=distance_sort,
+            # Add a task to layout the child.
+            stack.append(
+                (
+                    child,
+                    child_x,
+                    child_y,
+                    child_arc_start,
+                    child_arc_stop,
+                )
             )
 
-            # Update loop variables ready for the next iteration.
+            # Update loop variables ready for the next child.
             child_arc_start = child_arc_stop
-
-    else:
-        leaf_nodes.append((x, y, node.id))

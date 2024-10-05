@@ -23,12 +23,6 @@ import anjl
 help(anjl.canonical_nj)
 ```
 
-### Convert to tree-like data structure
-
-```python
-help(anjl.to_tree)
-```
-
 ### Plot a tree using the equal-angles layout
 
 ```python

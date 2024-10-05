@@ -1,0 +1,18 @@
+[project]
+authors = ["Alistair Miles <alimanfoo@googlemail.com>"]
+channels = ["conda-forge"]
+description = "Add a short description here"
+name = "data"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+python = "3.12.*"
+
+[pypi-dependencies]
+jupyterlab = ">=4.2.5, <5"
+ipykernel = ">=6.29.5, <7"
+malariagen-data = ">=13.2.1, <14"
+pixi-kernel = ">=0.4.0, <0.5"
