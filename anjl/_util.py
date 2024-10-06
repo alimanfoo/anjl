@@ -78,3 +78,48 @@ def leaf_index(Z: np.ndarray) -> list[list[int]]:
         index.append(leaves)
 
     return index
+
+
+def decorate_internal_nodes(Z: np.ndarray, leaf_values: np.ndarray) -> np.ndarray:
+    """TODO"""
+
+    internal_value_sets = []
+    internal_values = np.empty(shape=Z.shape[0], dtype=leaf_values.dtype)
+
+    # Total number of internal nodes.
+    n_internal = Z.shape[0]
+
+    # Total number of leaf nodes.
+    n_original = n_internal + 1
+
+    # Iterate over internal nodes.
+    for z in range(n_internal):
+        # Create a set to store the values for this node.
+        values = set()
+
+        # Access the direct children of this node.
+        left = int(Z[z, 0])
+        right = int(Z[z, 1])
+
+        # Handle the left child.
+        if left < n_original:
+            values.add(leaf_values[left])
+        else:
+            values.update(internal_value_sets[left - n_original])
+
+        # Handle the right child.
+        if right < n_original:
+            values.add(leaf_values[right])
+        else:
+            values.update(internal_value_sets[right - n_original])
+
+        # Store a singleton value if present.
+        if len(values) == 1:
+            internal_values[z] = list(values)[0]
+        else:
+            internal_values[z] = ""
+
+        # Store all the values for use in subsequent interations.
+        internal_value_sets.append(values)
+
+    return internal_values
