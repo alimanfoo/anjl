@@ -12,6 +12,8 @@ def plot_equal_angle(
     leaf_data: pd.DataFrame | None = None,
     color: Any = None,
     symbol: Any = None,
+    hover_name: str | None = None,
+    hover_data: list | None = None,
     center_x: int | float = 0,
     center_y: int | float = 0,
     arc_start: int | float = 0,
@@ -60,12 +62,14 @@ def plot_equal_angle(
     )
 
     # Draw the leaves.
+    if hover_name is None:
+        hover_name = "id"
     fig2 = px.scatter(
         data_frame=df_leaf_nodes,
         x="x",
         y="y",
-        hover_name="id",
-        hover_data=None,
+        hover_name=hover_name,
+        hover_data=hover_data,
         color=color,
         symbol=symbol,
         render_mode=render_mode,

@@ -66,7 +66,7 @@ def layout_equal_angle(
         internal_nodes, columns=["x", "y", "id"]
     )
     df_leaf_nodes = pd.DataFrame.from_records(leaf_nodes, columns=["x", "y", "id"])
-    df_edges = pd.DataFrame.from_records(edges, columns=["x", "y"])
+    df_edges = pd.DataFrame.from_records(edges, columns=["x", "y", "id"])
 
     return df_internal_nodes, df_leaf_nodes, df_edges
 
@@ -145,9 +145,9 @@ def _layout_equal_angle(
             child_y = y + child_dist * math.cos(child_angle)
 
             # Add edge.
-            edges.append((x, y))
-            edges.append((child_x, child_y))
-            edges.append((None, None))
+            edges.append((x, y, child))
+            edges.append((child_x, child_y, child))
+            edges.append((None, None, child))
 
             # Add a task to layout the child.
             stack.append(
