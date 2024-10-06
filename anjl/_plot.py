@@ -1,4 +1,5 @@
 import math
+from itertools import cycle
 from typing import Literal, Any
 import plotly.express as px
 import plotly.graph_objects as go
@@ -19,11 +20,18 @@ def plot_equal_angle(
     center_y: int | float = 0,
     arc_start: int | float = 0,
     arc_stop: int | float = 2 * math.pi,
+    count_sort: bool = True,
     distance_sort: bool = False,
-    count_sort: bool = False,
     line_width: int | float = 1,
     marker_size: int | float = 5,
     internal_marker_size: int | float = 0,
+    color_discrete_sequence=None,
+    color_discrete_map=None,
+    category_orders=None,
+    leaf_legend: bool = True,
+    edge_legend: bool = False,
+    internal_legend: bool = False,
+    default_edge_color="black",
     width: int | float = 700,
     height: int | float = 600,
     render_mode: Literal["auto", "svg", "webgl"] = "auto",
@@ -54,6 +62,21 @@ def plot_equal_angle(
         )
         if color is not None:
             leaf_color_values = leaf_data[color].values
+            unique_color_values = np.unique(leaf_color_values)
+            if category_orders is None:
+                category_orders = {color: unique_color_values}
+            if color_discrete_map is None:
+                if color_discrete_sequence is None:
+                    if len(unique_color_values) <= 10:
+                        color_discrete_sequence = px.colors.qualitative.Plotly
+                    else:
+                        color_discrete_sequence = px.colors.qualitative.Alphabet
+                # Map values to colors.
+                color_discrete_map = {
+                    v: c
+                    for v, c in zip(unique_color_values, cycle(color_discrete_sequence))
+                }
+            color_discrete_map[""] = default_edge_color
             internal_color_values = decorate_internal_nodes(Z, leaf_color_values)
             color_values = np.concatenate([leaf_color_values, internal_color_values])
             color_data = pd.DataFrame({color: color_values})
@@ -71,10 +94,13 @@ def plot_equal_angle(
         hover_name=None,
         hover_data=None,
         color=color,
+        category_orders=category_orders,
+        color_discrete_map=color_discrete_map,
+        color_discrete_sequence=color_discrete_sequence,
         render_mode=render_mode,
     )
     line_props = dict(width=line_width)
-    fig1.update_traces(line=line_props)
+    fig1.update_traces(line=line_props, showlegend=edge_legend)
     fig.add_traces(list(fig1.select_traces()))
 
     # Draw the leaves.
@@ -87,11 +113,14 @@ def plot_equal_angle(
         hover_name=hover_name,
         hover_data=hover_data,
         color=color,
+        category_orders=category_orders,
+        color_discrete_map=color_discrete_map,
+        color_discrete_sequence=color_discrete_sequence,
         symbol=symbol,
         render_mode=render_mode,
     )
     marker_props = dict(size=marker_size)
-    fig2.update_traces(marker=marker_props)
+    fig2.update_traces(marker=marker_props, showlegend=leaf_legend)
     fig.add_traces(list(fig2.select_traces()))
 
     if internal_marker_size > 0:
@@ -102,10 +131,13 @@ def plot_equal_angle(
             y="y",
             hover_name="id",
             color=color,
+            category_orders=category_orders,
+            color_discrete_map=color_discrete_map,
+            color_discrete_sequence=color_discrete_sequence,
             render_mode=render_mode,
         )
         internal_marker_props = dict(size=internal_marker_size)
-        fig3.update_traces(marker=internal_marker_props)
+        fig3.update_traces(marker=internal_marker_props, showlegend=internal_legend)
         fig.add_traces(list(fig3.select_traces()))
 
     # Style the figure.
