@@ -11,6 +11,7 @@ def rapid_nj(
     progress: Callable | None = None,
     progress_options: Mapping = {},
     diagnostics=False,
+    gc=100,
 ) -> np.ndarray:
     """TODO"""
 
@@ -66,6 +67,13 @@ def rapid_nj(
 
     # Begin iterating.
     for iteration in iterator:
+        if gc and iteration % gc == 0:
+            _rapid_nj_gc(
+                nodes_sorted=nodes_sorted,
+                index_to_id=index_to_id,
+                clustered=clustered,
+            )
+
         before = time.time()
 
         # Perform one iteration of the neighbour-joining algorithm.
@@ -90,6 +98,29 @@ def rapid_nj(
         return Z, np.array(timings)
 
     return Z
+
+
+@numba.njit
+def _rapid_nj_gc(
+    nodes_sorted: np.ndarray,
+    index_to_id: np.ndarray,
+    clustered: np.ndarray,
+):
+    for i in range(nodes_sorted.shape[0]):
+        id_i = index_to_id[i]
+        if clustered[id_i]:
+            continue
+        sj_new = 0
+        for sj in range(nodes_sorted.shape[1]):
+            id_j = nodes_sorted[i, sj]
+            if clustered[id_j]:
+                continue
+            if id_i == id_j:
+                continue
+            nodes_sorted[i, sj_new] = id_j
+            sj_new += 1
+        for sj in range(sj_new, nodes_sorted.shape[1]):
+            nodes_sorted[i, sj] = -1
 
 
 @numba.njit
@@ -234,7 +265,8 @@ def _rapid_nj_search(
         for sj in range(nodes_sorted.shape[1]):
             # Obtain node identifier for the current item.
             id_j = nodes_sorted[i, sj]
-            assert id_j >= 0
+            if id_j < 0:
+                break
 
             # Skip if this node is already clustered or we are comparing to self.
             if id_i == id_j or clustered[id_j]:
@@ -276,7 +308,8 @@ def _rapid_nj_search(
         for sj in range(nodes_sorted.shape[1]):
             # Obtain node identifier for the current item.
             id_j = nodes_sorted[i, sj]
-            assert id_j >= 0
+            if id_j < 0:
+                break
 
             # Skip if this node is already clustered or we are comparing to self.
             if id_i == id_j or clustered[id_j]:
@@ -284,7 +317,7 @@ def _rapid_nj_search(
 
             # Obtain column index in the distance matrix.
             j = id_to_index[id_j]
-            assert j >= 0
+            # assert j >= 0
 
             # Partially calculate q.
             d = D[i, j]
