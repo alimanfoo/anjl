@@ -1,3 +1,4 @@
+import time
 from typing import Callable
 from collections.abc import Mapping
 import numpy as np
@@ -9,6 +10,7 @@ def canonical_nj(
     disallow_negative_distances: bool = True,
     progress: Callable | None = None,
     progress_options: Mapping = {},
+    diagnostics=False,
 ) -> np.ndarray:
     """TODO"""
 
@@ -46,8 +48,11 @@ def canonical_nj(
     if progress:
         iterator = progress(iterator, **progress_options)
 
+    timings = []
+
     # Begin iterating.
     for iteration in iterator:
+        before = time.time()
         # Perform one iteration of the neighbour-joining algorithm.
         _canonical_nj_iteration(
             iteration=iteration,
@@ -59,6 +64,12 @@ def canonical_nj(
             n_original=n_original,
             disallow_negative_distances=disallow_negative_distances,
         )
+
+        duration = time.time() - before
+        timings.append(duration)
+
+    if diagnostics:
+        return Z, np.array(timings)
 
     return Z
 

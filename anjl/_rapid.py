@@ -2,6 +2,7 @@ from typing import Callable
 from collections.abc import Mapping
 import numpy as np
 import numba
+import time
 
 
 def rapid_nj(
@@ -9,6 +10,7 @@ def rapid_nj(
     disallow_negative_distances: bool = True,
     progress: Callable | None = None,
     progress_options: Mapping = {},
+    diagnostics=False,
 ) -> np.ndarray:
     """TODO"""
 
@@ -59,8 +61,13 @@ def rapid_nj(
     if progress:
         iterator = progress(iterator, **progress_options)
 
+    # Record iteration timings.
+    timings = []
+
     # Begin iterating.
     for iteration in iterator:
+        before = time.time()
+
         # Perform one iteration of the neighbour-joining algorithm.
         u_max = _rapid_nj_iteration(
             iteration=iteration,
@@ -75,6 +82,12 @@ def rapid_nj(
             disallow_negative_distances=disallow_negative_distances,
             u_max=u_max,
         )
+
+        duration = time.time() - before
+        timings.append(duration)
+
+    if diagnostics:
+        return Z, np.array(timings)
 
     return Z
 
