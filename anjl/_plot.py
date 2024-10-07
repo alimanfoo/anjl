@@ -35,6 +35,7 @@ def plot_equal_angle(
     render_mode: Literal["auto", "svg", "webgl"] = "auto",
     legend_sizing: Literal["constant", "trace"] = "constant",
 ) -> go.Figure:
+    # Layout the nodes in the tree according to the equal angles algorithm.
     df_internal_nodes, df_leaf_nodes, df_edges = layout_equal_angle(
         Z=Z,
         center_x=center_x,
@@ -45,8 +46,7 @@ def plot_equal_angle(
         count_sort=count_sort,
     )
 
-    # Don't plot a legend unless there are color and/or symbol
-    # options.
+    # Don't plot a legend unless there are color and/or symbol options.
     if color is None and symbol is None:
         leaf_legend = edge_legend = False
 
