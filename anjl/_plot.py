@@ -1,6 +1,6 @@
 import math
 from itertools import cycle
-from typing import Literal, Any
+from typing import Literal
 import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
@@ -11,10 +11,10 @@ from ._layout import layout_equal_angle
 def plot_equal_angle(
     Z: np.ndarray,
     leaf_data: pd.DataFrame | None = None,
-    color: Any = None,
-    symbol: Any = None,
+    color: str | None = None,
+    symbol: str | None = None,
     hover_name: str | None = None,
-    hover_data: list | None = None,
+    hover_data: list[str] | None = None,
     center_x: int | float = 0,
     center_y: int | float = 0,
     arc_start: int | float = 0,
@@ -164,8 +164,8 @@ def plot_equal_angle(
 
 
 def normalise_color_params(
-    leaf_data,
-    color,
+    leaf_data: pd.DataFrame | None,
+    color: str | None,
     category_orders,
     color_discrete_sequence,
     color_discrete_map,
@@ -178,7 +178,7 @@ def normalise_color_params(
         # color_discrete_map parameters.
 
         # Access the leaf colors.
-        leaf_color_values = leaf_data[color].values
+        leaf_color_values = np.asarray(leaf_data[color].values)
 
         # Find all unique color values.
         unique_color_values = np.unique(leaf_color_values)
@@ -208,13 +208,13 @@ def normalise_color_params(
 
 
 def decorate_tree(
-    Z,
-    df_internal_nodes,
-    df_leaf_nodes,
-    df_edges,
-    leaf_data,
-    color,
-):
+    Z: np.ndarray,
+    df_internal_nodes: pd.DataFrame,
+    df_leaf_nodes: pd.DataFrame,
+    df_edges: pd.DataFrame,
+    leaf_data: pd.DataFrame | None,
+    color: str | None,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """TODO"""
 
     if leaf_data is not None:
@@ -228,7 +228,7 @@ def decorate_tree(
         # Further handling of color parameter if provided.
         if color is not None:
             # Access the leaf colors.
-            leaf_color_values = leaf_data[color].values
+            leaf_color_values = np.asarray(leaf_data[color].values)
 
             # Associate colors with internal nodes and edges.
             internal_color_values = paint_internal(Z, leaf_color_values)
