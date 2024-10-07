@@ -49,12 +49,13 @@ def canonical_nj(
         iterator = progress(iterator, **progress_options)
 
     timings = []
+    searches = []
 
     # Begin iterating.
     for iteration in iterator:
         before = time.time()
         # Perform one iteration of the neighbour-joining algorithm.
-        _canonical_nj_iteration(
+        searched = _canonical_nj_iteration(
             iteration=iteration,
             D=D,
             U=U,
@@ -67,9 +68,10 @@ def canonical_nj(
 
         duration = time.time() - before
         timings.append(duration)
+        searches.append(searched)
 
     if diagnostics:
-        return Z, np.array(timings)
+        return Z, np.array(timings), np.array(searches)
 
     return Z
 
@@ -93,7 +95,7 @@ def _canonical_nj_iteration(
 
     if n_remaining > 2:
         # Search for the closest pair of nodes to join.
-        i_min, j_min = _canonical_nj_search(
+        i_min, j_min, searched = _canonical_nj_search(
             D=D, U=U, clustered=clustered, n=n_remaining
         )
         assert i_min >= 0
@@ -112,6 +114,7 @@ def _canonical_nj_iteration(
         d_ij = D[i_min, j_min]
         d_i = d_ij / 2
         d_j = d_ij / 2
+        searched = 0
 
     # Handle possibility of negative distances.
     if disallow_negative_distances:
@@ -161,6 +164,8 @@ def _canonical_nj_iteration(
             d_ij=d_ij,
         )
 
+    return searched
+
 
 @numba.njit
 def _canonical_nj_search(
@@ -170,6 +175,7 @@ def _canonical_nj_search(
     q_min = np.inf
     i_min = -1
     j_min = -1
+    searched = 0
     for i in range(D.shape[0]):
         if clustered[i]:
             continue
@@ -177,6 +183,7 @@ def _canonical_nj_search(
         for j in range(i):
             if clustered[j]:
                 continue
+            searched += 1
             u_j = U[j]
             d = D[i, j]
             q = (n - 2) * d - u_i - u_j
@@ -184,7 +191,7 @@ def _canonical_nj_search(
                 q_min = q
                 i_min = i
                 j_min = j
-    return i_min, j_min
+    return i_min, j_min, searched
 
 
 @numba.njit
