@@ -147,6 +147,7 @@ def _canonical_nj_iteration(
             node=node,
             i_min=i_min,
             j_min=j_min,
+            d_ij=d_ij,
         )
 
 
@@ -184,15 +185,12 @@ def _canonical_nj_update(
     node: int,
     i_min: int,
     j_min: int,
+    d_ij: float,
 ) -> None:
     # Here we obsolete the row and column corresponding to the node at j_min, and we
     # reuse the row and column at i_min for the new node.
     clustered[j_min] = True
     index_to_id[i_min] = node
-    index_to_id[j_min] = -1
-
-    # Distance between nodes being joined.
-    d_ij = D[i_min, j_min]
 
     # Subtract out the distances for the nodes that have just been joined.
     U -= D[i_min]
@@ -203,12 +201,12 @@ def _canonical_nj_update(
 
     # Update distances and divergence.
     for k in range(D.shape[0]):
-        if clustered[k] or k == i_min:
+        if clustered[k] or k == i_min or k == j_min:
             continue
-        d_ik = D[i_min, k]
-        d_jk = D[j_min, k]
 
         # Distance from k to the new node.
+        d_ik = D[i_min, k]
+        d_jk = D[j_min, k]
         d_k = 0.5 * (d_ik + d_jk - d_ij)
         D[i_min, k] = d_k
         D[k, i_min] = d_k

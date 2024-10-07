@@ -18,6 +18,7 @@ def rapid_nj(
 
     # Initialize the "divergence" array, containing sum of distances to other nodes.
     U = np.sum(D, axis=1)
+    u_max = U.max()
 
     # Obtain node identifiers to sort the distance matrix row-wise.
     nodes_sorted = np.argsort(D, axis=1)
@@ -61,7 +62,7 @@ def rapid_nj(
     # Begin iterating.
     for iteration in iterator:
         # Perform one iteration of the neighbour-joining algorithm.
-        _rapid_nj_iteration(
+        u_max = _rapid_nj_iteration(
             iteration=iteration,
             D=D,
             U=U,
@@ -72,6 +73,7 @@ def rapid_nj(
             Z=Z,
             n_original=n_original,
             disallow_negative_distances=disallow_negative_distances,
+            u_max=u_max,
         )
 
     return Z
@@ -89,7 +91,8 @@ def _rapid_nj_iteration(
     Z: np.ndarray,
     n_original: int,
     disallow_negative_distances: bool,
-) -> None:
+    u_max: np.float32,
+) -> np.float32:
     # This will be the identifier for the new node to be created in this iteration.
     node = iteration + n_original
 
@@ -106,6 +109,7 @@ def _rapid_nj_iteration(
             index_to_id=index_to_id,
             id_to_index=id_to_index,
             n=n_remaining,
+            u_max=u_max,
         )
         assert i_min >= 0
         assert j_min >= 0
@@ -165,7 +169,7 @@ def _rapid_nj_iteration(
 
     if n_remaining > 2:
         # Update data structures.
-        _rapid_nj_update(
+        u_max = _rapid_nj_update(
             D=D,
             U=U,
             nodes_sorted=nodes_sorted,
@@ -180,6 +184,8 @@ def _rapid_nj_iteration(
             d_ij=d_ij,
         )
 
+    return u_max
+
 
 @numba.njit
 def _rapid_nj_search(
@@ -190,6 +196,7 @@ def _rapid_nj_search(
     index_to_id: np.ndarray,
     id_to_index: np.ndarray,
     n: int,
+    u_max: np.float32,
 ) -> tuple[int, int]:
     # Initialize working variables.
     q_min = np.inf
@@ -217,7 +224,7 @@ def _rapid_nj_search(
             assert id_j >= 0
 
             # Skip if this node is already clustered or we are comparing to self.
-            if clustered[id_j] or id_i == id_j:
+            if id_i == id_j or clustered[id_j]:
                 continue
 
             # Obtain column index in the distance matrix.
@@ -239,10 +246,6 @@ def _rapid_nj_search(
             # pass.
             break
 
-    # Find maximum divergence, needed to calculate threshold value above which search
-    # can be terminated.
-    u_max = U.max()
-
     # Second pass, search all values up to threshold.
     for i in range(nodes_sorted.shape[0]):
         # Obtain node identifier for the current row.
@@ -259,10 +262,11 @@ def _rapid_nj_search(
         # Search the row up to threshold.
         for sj in range(nodes_sorted.shape[1]):
             # Obtain node identifier for the current item.
-            id_j = index_to_id[sj]
+            id_j = nodes_sorted[i, sj]
+            assert id_j >= 0
 
             # Skip if this node is already clustered or we are comparing to self.
-            if clustered[id_j] or id_i == id_j:
+            if id_i == id_j or clustered[id_j]:
                 continue
 
             # Obtain column index in the distance matrix.
@@ -304,7 +308,7 @@ def _rapid_nj_update(
     i_min: int,
     j_min: int,
     d_ij: float,
-) -> None:
+) -> np.float32:
     # Update data structures. Here we obsolete the row and column corresponding to the
     # node at j_min, and we reuse the row and column at i_min for the new node.
     clustered[child_i] = True
@@ -317,16 +321,24 @@ def _rapid_nj_update(
     # Subtract out the distances for the nodes that have just been joined.
     U -= D[i_min]
     U -= D[j_min]
-    U[j_min] = 0
+    U[j_min] = 0  # Set 0 to make sure max calculation is correct.
 
     # Initialize divergence for the new node.
     u_new = np.float32(0)
+
+    # Find new max.
+    u_max = np.float32(0)
 
     # Update distances and divergence.
     for k in range(D.shape[0]):
         id_k = index_to_id[k]
 
-        if clustered[id_k] or k == i_min:
+        if clustered[id_k]:
+            D[i_min, k] = np.inf
+            D[k, i_min] = np.inf
+            continue
+
+        if k == i_min or k == j_min:
             continue
 
         # Distance from k to the new node.
@@ -338,14 +350,24 @@ def _rapid_nj_update(
         u_k = U[k] + d_k
         U[k] = u_k
 
+        # Record new max.
+        if u_k > u_max:
+            u_max = u_k
+
         # Accumulate divergence for the new node.
         u_new += d_k
 
     # Store divergence for the new node.
     U[i_min] = u_new
 
+    # Record new max.
+    if u_new > u_max:
+        u_max = u_new
+
     # Update the sorted distances and indices for the new node.
     distances_new = D[i_min]
     indices_new = np.argsort(distances_new)
     ids_new = np.take(index_to_id, indices_new)
     nodes_sorted[i_min] = ids_new
+
+    return u_max
