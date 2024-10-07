@@ -9,8 +9,7 @@ def to_string(Z: np.ndarray) -> str:
     # Total number of leaf nodes.
     n_original = n_internal + 1
 
-    # Set up the first node to visit, which will be the
-    # root node.
+    # Set up the first node to visit, which will be the root node.
     root = n_original + n_internal - 1
 
     # Initialise working variables.
@@ -34,19 +33,17 @@ def to_string(Z: np.ndarray) -> str:
             count = int(Z[z, 4])
             text += f"{indent}Node(id={node}, dist={dist}, count={count})\n"
 
-            # Put them on the stack in this order so the left node comes
-            # out first.
+            # Put them on the stack in this order so the left node comes out first.
             stack.append((right, rdist, indent + "    "))
             stack.append((left, ldist, indent + "    "))
 
     return text.strip()
 
 
-def leaf_index(Z: np.ndarray) -> list[list[int]]:
+def map_internal_to_leaves(Z: np.ndarray) -> list[list[int]]:
     """TODO"""
 
-    # For each internal node, build a list of all the
-    # descendant leaves.
+    # For each internal node, build a list of all the descendant leaf ids.
     index: list[list[int]] = []
 
     # Total number of internal nodes.

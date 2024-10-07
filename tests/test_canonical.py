@@ -35,7 +35,7 @@ def validate_nj_result(Z, D):
     assert int(Z[-1, 4]) == n_original
 
 
-def test_amelia_harrison():
+def test_amelia_harrison_example():
     # This example comes from Amelia Harrison's blog.
     # https://www.tenderisthebyte.com/blog/2022/08/31/neighbor-joining-trees/
 
@@ -85,7 +85,7 @@ def test_amelia_harrison():
     assert int(leaves) == 4
 
 
-def test_wikipedia():
+def test_wikipedia_example():
     # This example comes from the wikipedia page on neighbour-joining.
     # https://en.wikipedia.org/wiki/Neighbor_joining#Example
 

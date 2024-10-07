@@ -31,4 +31,4 @@ def test_to_string():
     assert anjl.to_string(Z) == expected_str
 
 
-# TODO test leaf_index()
+# TODO test map_internal_to_leaves()

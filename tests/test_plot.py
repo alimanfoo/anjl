@@ -3,7 +3,7 @@ import plotly.graph_objects as go
 import anjl
 
 
-def test_amelia_harrison():
+def test_amelia_harrison_example():
     # This example comes from Amelia Harrison's blog.
     # https://www.tenderisthebyte.com/blog/2022/08/31/neighbor-joining-trees/
 
@@ -21,7 +21,7 @@ def test_amelia_harrison():
     assert isinstance(fig, go.Figure)
 
 
-def test_wikipedia():
+def test_wikipedia_example():
     # This example comes from the wikipedia page on neighbour-joining.
     # https://en.wikipedia.org/wiki/Neighbor_joining#Example
 

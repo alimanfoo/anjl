@@ -22,9 +22,10 @@ def validate_layout_result(D, Z, df_internal_nodes, df_leaf_nodes, df_edges):
     # 2 edges per internal node, three rows per edge to get each
     # endpoint plus null row to get plotly to break between edges.
     assert len(df_edges) == 6 * n_internal
+    assert df_edges.columns.to_list() == ["x", "y", "id"]
 
 
-def test_amelia_harrison():
+def test_amelia_harrison_example():
     # This example comes from Amelia Harrison's blog.
     # https://www.tenderisthebyte.com/blog/2022/08/31/neighbor-joining-trees/
 
@@ -48,7 +49,7 @@ def test_amelia_harrison():
     )
 
 
-def test_wikipedia():
+def test_wikipedia_example():
     # This example comes from the wikipedia page on neighbour-joining.
     # https://en.wikipedia.org/wiki/Neighbor_joining#Example
 

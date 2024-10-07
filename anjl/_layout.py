@@ -66,7 +66,7 @@ def layout_equal_angle(
         internal_nodes, columns=["x", "y", "id"]
     )
     df_leaf_nodes = pd.DataFrame.from_records(leaf_nodes, columns=["x", "y", "id"])
-    df_edges = pd.DataFrame.from_records(edges, columns=["x", "y"])
+    df_edges = pd.DataFrame.from_records(edges, columns=["x", "y", "id"])
 
     return df_internal_nodes, df_leaf_nodes, df_edges
 
@@ -103,28 +103,28 @@ def _layout_equal_angle(
         # Access data for this node and its children.
         left = int(Z[z, 0])
         right = int(Z[z, 1])
-        ldist = Z[z, 2]
-        rdist = Z[z, 3]
+        dist_l = Z[z, 2]
+        dist_r = Z[z, 3]
         leaf_count = int(Z[z, 4])
         if left < n_original:
-            lcount = 1
+            count_l = 1
         else:
-            lcount = int(Z[left - n_original, 4])
+            count_l = int(Z[left - n_original, 4])
         if right < n_original:
-            rcount = 1
+            count_r = 1
         else:
-            rcount = int(Z[right - n_original, 4])
+            count_r = int(Z[right - n_original, 4])
 
         # Store internal node coordinates.
         internal_nodes.append((x, y, node))
 
         # Set up convenience variable.
-        children = [(left, ldist, lcount), (right, rdist, rcount)]
+        children = [(left, dist_l, count_l), (right, dist_r, count_r)]
 
         # Sort the subtrees.
-        if distance_sort and rdist < ldist:
+        if distance_sort and dist_r < dist_l:
             children.reverse()
-        elif count_sort and rcount < lcount:
+        elif count_sort and count_r < count_l:
             children.reverse()
 
         # Iterate over children, dividing up the current arc into
@@ -145,9 +145,9 @@ def _layout_equal_angle(
             child_y = y + child_dist * math.cos(child_angle)
 
             # Add edge.
-            edges.append((x, y))
-            edges.append((child_x, child_y))
-            edges.append((None, None))
+            edges.append((x, y, child))
+            edges.append((child_x, child_y, child))
+            edges.append((None, None, child))
 
             # Add a task to layout the child.
             stack.append(
