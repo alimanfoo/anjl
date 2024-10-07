@@ -35,6 +35,7 @@ def plot_equal_angle(
     render_mode: Literal["auto", "svg", "webgl"] = "auto",
     legend_sizing: Literal["constant", "trace"] = "constant",
 ) -> go.Figure:
+    """TODO"""
     # Layout the nodes in the tree according to the equal angles algorithm.
     df_internal_nodes, df_leaf_nodes, df_edges = layout_equal_angle(
         Z=Z,
@@ -51,53 +52,26 @@ def plot_equal_angle(
         leaf_legend = edge_legend = False
 
     # Decorate the tree.
-    if leaf_data is not None:
-        # Join the leaf data with the leaf nodes, so leaf data is
-        # available for color, symbol, hover_name and hover_data
-        # options.
-        df_leaf_nodes = (
-            df_leaf_nodes.set_index("id").join(leaf_data, how="left").reset_index()
+    df_internal_nodes, df_leaf_nodes, df_edges = decorate_tree(
+        Z=Z,
+        df_internal_nodes=df_internal_nodes,
+        df_leaf_nodes=df_leaf_nodes,
+        df_edges=df_edges,
+        leaf_data=leaf_data,
+        color=color,
+    )
+
+    # Populate and normalise color parameters.
+    category_orders, color_discrete_sequence, color_discrete_map = (
+        normalise_color_params(
+            leaf_data=leaf_data,
+            color=color,
+            category_orders=category_orders,
+            color_discrete_sequence=color_discrete_sequence,
+            color_discrete_map=color_discrete_map,
+            default_edge_color=default_edge_color,
         )
-
-        # Further handling of color parameter if provided.
-        if color is not None:
-            # Access the leaf colors.
-            leaf_color_values = leaf_data[color].values
-
-            # We need all traces to use the same color configuration, and
-            # so we population and normalise the category_orders,
-            # color_discrete_sequence and color_discrete_map parameters.
-
-            # Find all unique color values.
-            unique_color_values = np.unique(leaf_color_values)
-
-            # Normalise category orders.
-            if category_orders is None:
-                category_orders = {color: unique_color_values}
-
-            # Normalise the color mapping.
-            if color_discrete_map is None:
-                if color_discrete_sequence is None:
-                    if len(unique_color_values) <= 10:
-                        color_discrete_sequence = px.colors.qualitative.Plotly
-                    else:
-                        color_discrete_sequence = px.colors.qualitative.Alphabet
-                # Map values to colors.
-                color_discrete_map = {
-                    v: c
-                    for v, c in zip(unique_color_values, cycle(color_discrete_sequence))
-                }
-
-            # Set a default color for edges where descendant leaves have
-            # different colors.
-            color_discrete_map[""] = default_edge_color
-
-            # Associate colors with internal nodes and edges.
-            internal_color_values = paint_internal(Z, leaf_color_values)
-            color_values = np.concatenate([leaf_color_values, internal_color_values])
-            color_data = pd.DataFrame({color: color_values})
-            df_edges = df_edges.join(color_data, on="id", how="left")
-            df_internal_nodes = df_internal_nodes.join(color_data, on="id", how="left")
+    )
 
     # Create a single figure that will be used for all traces.
     fig = go.Figure()
@@ -187,6 +161,83 @@ def plot_equal_angle(
     )
 
     return fig
+
+
+def normalise_color_params(
+    leaf_data,
+    color,
+    category_orders,
+    color_discrete_sequence,
+    color_discrete_map,
+    default_edge_color,
+):
+    """TODO"""
+    if leaf_data is not None and color is not None:
+        # We need all traces to use the same color configuration, and so we population
+        # and normalise the category_orders, color_discrete_sequence and
+        # color_discrete_map parameters.
+
+        # Access the leaf colors.
+        leaf_color_values = leaf_data[color].values
+
+        # Find all unique color values.
+        unique_color_values = np.unique(leaf_color_values)
+
+        # Normalise category orders.
+        if category_orders is None:
+            category_orders = {color: unique_color_values}
+
+        # Normalise the color mapping.
+        if color_discrete_map is None:
+            if color_discrete_sequence is None:
+                if len(unique_color_values) <= 10:
+                    color_discrete_sequence = px.colors.qualitative.Plotly
+                else:
+                    color_discrete_sequence = px.colors.qualitative.Alphabet
+            # Map values to colors.
+            color_discrete_map = {
+                v: c
+                for v, c in zip(unique_color_values, cycle(color_discrete_sequence))
+            }
+
+        # Set a default color for edges where descendant leaves have
+        # different colors.
+        color_discrete_map[""] = default_edge_color
+
+    return category_orders, color_discrete_sequence, color_discrete_map
+
+
+def decorate_tree(
+    Z,
+    df_internal_nodes,
+    df_leaf_nodes,
+    df_edges,
+    leaf_data,
+    color,
+):
+    """TODO"""
+
+    if leaf_data is not None:
+        # Join the leaf data with the leaf nodes, so leaf data is
+        # available for color, symbol, hover_name and hover_data
+        # options.
+        df_leaf_nodes = (
+            df_leaf_nodes.set_index("id").join(leaf_data, how="left").reset_index()
+        )
+
+        # Further handling of color parameter if provided.
+        if color is not None:
+            # Access the leaf colors.
+            leaf_color_values = leaf_data[color].values
+
+            # Associate colors with internal nodes and edges.
+            internal_color_values = paint_internal(Z, leaf_color_values)
+            color_values = np.concatenate([leaf_color_values, internal_color_values])
+            color_data = pd.DataFrame({color: color_values})
+            df_edges = df_edges.join(color_data, on="id", how="left")
+            df_internal_nodes = df_internal_nodes.join(color_data, on="id", how="left")
+
+    return df_internal_nodes, df_leaf_nodes, df_edges
 
 
 def paint_internal(Z: np.ndarray, leaf_color_values: np.ndarray) -> np.ndarray:
