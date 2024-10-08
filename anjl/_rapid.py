@@ -70,6 +70,7 @@ def rapid_nj(
     # Record iteration timings.
     timings = []
     searches = []
+    visits = []
 
     # Begin iterating.
     for iteration in iterator:
@@ -77,8 +78,8 @@ def rapid_nj(
         n_remaining = n_original - iteration
 
         # Garbage collection.
-        if gc and iteration % gc == 0:
-            nodes_sorted = _rapid_nj_gc(
+        if gc and iteration > 0 and iteration % gc == 0:
+            nodes_sorted = _rapid_gc(
                 nodes_sorted=nodes_sorted,
                 index_to_id=index_to_id,
                 clustered=clustered,
@@ -88,7 +89,7 @@ def rapid_nj(
         before = time.time()
 
         # Perform one iteration of the neighbour-joining algorithm.
-        u_max, searched = _rapid_nj_iteration(
+        u_max, searched, visited = _rapid_iteration(
             iteration=iteration,
             D=D,
             U=U,
@@ -105,15 +106,16 @@ def rapid_nj(
         duration = time.time() - before
         timings.append(duration)
         searches.append(searched)
+        visits.append(visited)
 
     if diagnostics:
-        return Z, np.array(timings), np.array(searches)
+        return Z, np.array(timings), np.array(searches), np.array(visits)
 
     return Z
 
 
 @numba.njit
-def _rapid_nj_gc(
+def _rapid_gc(
     nodes_sorted: np.ndarray,
     index_to_id: np.ndarray,
     clustered: np.ndarray,
@@ -139,7 +141,7 @@ def _rapid_nj_gc(
 
 
 @numba.njit
-def _rapid_nj_iteration(
+def _rapid_iteration(
     iteration: int,
     D: np.ndarray,
     U: np.ndarray,
@@ -160,7 +162,7 @@ def _rapid_nj_iteration(
 
     if n_remaining > 2:
         # Search for the closest pair of nodes to join.
-        i_min, j_min, searched = _rapid_nj_search(
+        i_min, j_min, searched, visited = _rapid_search(
             D=D,
             U=U,
             nodes_sorted=nodes_sorted,
@@ -193,6 +195,7 @@ def _rapid_nj_iteration(
         d_i = d_ij / 2
         d_j = d_ij / 2
         searched = 0
+        visited = 0
 
     # Sanity checks.
     assert child_i >= 0
@@ -229,7 +232,7 @@ def _rapid_nj_iteration(
 
     if n_remaining > 2:
         # Update data structures.
-        u_max = _rapid_nj_update(
+        u_max = _rapid_update(
             D=D,
             U=U,
             nodes_sorted=nodes_sorted,
@@ -244,11 +247,11 @@ def _rapid_nj_iteration(
             d_ij=d_ij,
         )
 
-    return u_max, searched
+    return u_max, searched, visited
 
 
 @numba.njit
-def _rapid_nj_search(
+def _rapid_search(
     D: np.ndarray,
     U: np.ndarray,
     nodes_sorted: np.ndarray,
@@ -264,6 +267,7 @@ def _rapid_nj_search(
     i_min = -1
     j_min = -1
     searched = 0
+    visited = 0
     coefficient = numba.float32(n_remaining - 2)
     m = nodes_sorted.shape[0]
     n = nodes_sorted.shape[1]
@@ -282,10 +286,10 @@ def _rapid_nj_search(
 
         # Search the row up to threshold.
         for s in range(n):
+            visited += 1
+
             # Obtain node identifier for the current item.
             id_j = nodes_sorted[i, s]
-
-            searched += 1
 
             # Skip if this node is already clustered or we are comparing to self.
             if clustered[id_j]:
@@ -308,6 +312,8 @@ def _rapid_nj_search(
             if q_partial >= threshold:
                 break
 
+            searched += 1
+
             # Fully calculate q.
             u_j = U[j]
             q = q_partial - u_j
@@ -317,11 +323,11 @@ def _rapid_nj_search(
                 i_min = i
                 j_min = j
 
-    return i_min, j_min, searched
+    return i_min, j_min, searched, visited
 
 
 @numba.njit
-def _rapid_nj_update(
+def _rapid_update(
     D: np.ndarray,
     U: np.ndarray,
     nodes_sorted: np.ndarray,

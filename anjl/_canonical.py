@@ -11,6 +11,7 @@ def canonical_nj(
     progress: Callable | None = None,
     progress_options: Mapping = {},
     diagnostics=False,
+    gc=100,
 ) -> np.ndarray:
     """TODO"""
 
@@ -41,7 +42,7 @@ def canonical_nj(
     U = np.sum(D, axis=1)
 
     # Keep track of which rows correspond to nodes that have been clustered.
-    remaining = np.ones(shape=n_original, dtype=np.uint8)
+    obsolete = np.zeros(shape=n_original, dtype=bool)
 
     # Support wrapping the iterator in a progress bar.
     iterator = range(n_internal)
@@ -50,39 +51,77 @@ def canonical_nj(
 
     timings = []
     searches = []
+    visits = []
 
     # Begin iterating.
     for iteration in iterator:
+        # Periodically compact data structures.
+        if gc and iteration > 0 and iteration % gc == 0:
+            D, U, index_to_id, obsolete = _canonical_gc(
+                D=D, U=U, index_to_id=index_to_id, obsolete=obsolete
+            )
+
         before = time.time()
         # Perform one iteration of the neighbour-joining algorithm.
-        searched = _canonical_nj_iteration(
+        searched, visited = _canonical_iteration(
             iteration=iteration,
             D=D,
             U=U,
             index_to_id=index_to_id,
-            remaining=remaining,
+            obsolete=obsolete,
             Z=Z,
             n_original=n_original,
             disallow_negative_distances=disallow_negative_distances,
         )
-
         duration = time.time() - before
         timings.append(duration)
         searches.append(searched)
+        visits.append(visited)
 
     if diagnostics:
-        return Z, np.array(timings), np.array(searches)
+        return Z, np.array(timings), np.array(searches), np.array(visits)
 
     return Z
 
 
 @numba.njit
-def _canonical_nj_iteration(
+def _canonical_gc(
+    D: np.ndarray,
+    U: np.ndarray,
+    index_to_id: np.ndarray,
+    obsolete: np.ndarray,
+):
+    i_new = 0
+    n = D.shape[0]
+    for i in range(n):
+        if obsolete[i]:
+            continue
+        j_new = 0
+        for j in range(i):
+            if obsolete[j]:
+                continue
+            d = D[i, j]
+            D[i_new, j_new] = d
+            D[j_new, i_new] = d
+            j_new += 1
+        U[i_new] = U[i]
+        index_to_id[i_new] = index_to_id[i]
+        obsolete[i_new] = obsolete[i]
+        i_new += 1
+    D = D[:i_new, :i_new]
+    U = U[:i_new]
+    index_to_id = index_to_id[:i_new]
+    obsolete = obsolete[:i_new]
+    return D, U, index_to_id, obsolete
+
+
+@numba.njit
+def _canonical_iteration(
     iteration: int,
     D: np.ndarray,
     U: np.ndarray,
     index_to_id: np.ndarray,
-    remaining: np.ndarray,
+    obsolete: np.ndarray,
     Z: np.ndarray,
     n_original: int,
     disallow_negative_distances: bool,
@@ -95,8 +134,8 @@ def _canonical_nj_iteration(
 
     if n_remaining > 2:
         # Search for the closest pair of nodes to join.
-        i_min, j_min, searched = _canonical_nj_search(
-            D=D, U=U, remaining=remaining, n=n_remaining
+        i_min, j_min, searched, visited = _canonical_search(
+            D=D, U=U, obsolete=obsolete, n=n_remaining
         )
         assert i_min >= 0
         assert j_min >= 0
@@ -110,11 +149,12 @@ def _canonical_nj_iteration(
     else:
         # Termination. Join the two remaining nodes, placing the final node at the
         # midpoint.
-        i_min, j_min = np.nonzero(remaining)[0]
+        i_min, j_min = np.nonzero(~obsolete)[0]
         d_ij = D[i_min, j_min]
         d_i = d_ij / 2
         d_j = d_ij / 2
         searched = 0
+        visited = 0
 
     # Handle possibility of negative distances.
     if disallow_negative_distances:
@@ -153,36 +193,38 @@ def _canonical_nj_iteration(
 
     if n_remaining > 2:
         # Update data structures.
-        _canonical_nj_update(
+        _canonical_update(
             D=D,
             U=U,
             index_to_id=index_to_id,
-            remaining=remaining,
+            obsolete=obsolete,
             node=node,
             i_min=i_min,
             j_min=j_min,
             d_ij=d_ij,
         )
 
-    return searched
+    return searched, visited
 
 
 @numba.njit
-def _canonical_nj_search(
-    D: np.ndarray, U: np.ndarray, remaining: np.ndarray, n: int
+def _canonical_search(
+    D: np.ndarray, U: np.ndarray, obsolete: np.ndarray, n: int
 ) -> tuple[int, int]:
     # Search for the closest pair of neighbouring nodes to join.
     q_min = numba.float32(np.inf)
     i_min = -1
     j_min = -1
     searched = 0
+    visited = 0
     coefficient = numba.float32(n - 2)
     for i in range(D.shape[0]):
-        if remaining[i] == 0:
+        if obsolete[i]:
             continue
         u_i = U[i]
         for j in range(i):
-            if remaining[j] == 0:
+            visited += 1
+            if obsolete[j]:
                 continue
             searched += 1
             u_j = U[j]
@@ -192,15 +234,15 @@ def _canonical_nj_search(
                 q_min = q
                 i_min = i
                 j_min = j
-    return i_min, j_min, searched
+    return i_min, j_min, searched, visited
 
 
 @numba.njit
-def _canonical_nj_update(
+def _canonical_update(
     D: np.ndarray,
     U: np.ndarray,
     index_to_id: np.ndarray,
-    remaining: np.ndarray,
+    obsolete: np.ndarray,
     node: int,
     i_min: int,
     j_min: int,
@@ -208,7 +250,7 @@ def _canonical_nj_update(
 ) -> None:
     # Here we obsolete the row and column corresponding to the node at j_min, and we
     # reuse the row and column at i_min for the new node.
-    remaining[j_min] = 0
+    obsolete[j_min] = True
     index_to_id[i_min] = node
 
     # Subtract out the distances for the nodes that have just been joined.
@@ -220,7 +262,7 @@ def _canonical_nj_update(
 
     # Update distances and divergence.
     for k in range(D.shape[0]):
-        if remaining[k] == 0 or k == i_min or k == j_min:
+        if obsolete[k] or k == i_min or k == j_min:
             continue
 
         # Distance from k to the new node.
