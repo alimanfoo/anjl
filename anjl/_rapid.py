@@ -144,7 +144,7 @@ def _rapid_gc(
     return nodes_sorted
 
 
-# @numba.njit
+@numba.njit
 def _rapid_iteration(
     iteration: int,
     D: np.ndarray,
@@ -278,9 +278,31 @@ def _rapid_search(
     visited = 0
     coefficient = numba.float32(n_remaining - 2)
     m = nodes_sorted.shape[0]
-    n = nodes_sorted.shape[1]
+    # n = nodes_sorted.shape[1]
 
-    # Second pass, search all values up to threshold.
+    # # First pass, scan down first values.
+    # for i in range(m):
+    #     if obsolete[i]:
+    #         continue
+    #     u_i = U[i]
+    #     id_j = nodes_sorted[i, 0]
+    #     if clustered[id_j]:
+    #         continue
+    #     j = id_to_index[id_j]
+    #     u_j = U[j]
+    #     d = D[i, j]
+    #     q = coefficient * d - u_i - u_j
+    #     if q < q_min:
+    #         q_min = q
+    #         threshold = q_min + u_max
+    #         i_min = i
+    #         j_min = j
+
+    # indices_available = np.nonzero(~obsolete)[0]
+    # # np.random.shuffle(indices_available)
+    # for i in indices_available:
+
+    # Search all values up to threshold.
     for i in range(m):
         # Skip if row is no longer in use.
         if obsolete[i]:
@@ -293,22 +315,22 @@ def _rapid_search(
         u_i = U[i]
 
         # Search the row up to threshold.
-        for s in range(n):
+        for node in nodes_sorted[i]:
             visited += 1
 
-            # Obtain node identifier for the current item.
-            id_j = nodes_sorted[i, s]
+            # # Obtain node identifier for the current item.
+            # id_j = nodes_sorted[i, s]
 
             # Skip if this node is already clustered.
-            if clustered[id_j]:
+            if clustered[node]:
                 continue
 
             # Break at end of nodes.
-            if id_j < 0:
+            if node < 0:
                 break
 
             # Obtain column index in the distance matrix.
-            j = id_to_index[id_j]
+            j = id_to_index[node]
 
             # Partially calculate q.
             d = D[i, j]
@@ -317,7 +339,7 @@ def _rapid_search(
             # Limit search. Because the row is sorted, if we are already above this
             # threshold then we know there is no need to search remaining nodes in the
             # row.
-            if q_partial >= threshold:
+            if q_partial > threshold:
                 break
 
             # Fully calculate q.

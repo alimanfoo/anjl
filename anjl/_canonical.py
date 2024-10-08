@@ -77,7 +77,7 @@ def canonical_nj(
     return Z
 
 
-# @numba.njit
+@numba.njit
 def _canonical_iteration(
     iteration: int,
     D: np.ndarray,
@@ -180,7 +180,8 @@ def _canonical_search(
     searched = 0
     visited = 0
     coefficient = numba.float32(n - 2)
-    for i in range(D.shape[0]):
+    m = D.shape[0]
+    for i in range(m):
         if obsolete[i]:
             continue
         u_i = U[i]
