@@ -41,7 +41,7 @@ def canonical_nj(
     U = np.sum(D, axis=1)
 
     # Keep track of which rows correspond to nodes that have been clustered.
-    clustered = np.zeros(shape=n_original, dtype="bool")
+    remaining = np.ones(shape=n_original, dtype=np.uint8)
 
     # Support wrapping the iterator in a progress bar.
     iterator = range(n_internal)
@@ -60,7 +60,7 @@ def canonical_nj(
             D=D,
             U=U,
             index_to_id=index_to_id,
-            clustered=clustered,
+            remaining=remaining,
             Z=Z,
             n_original=n_original,
             disallow_negative_distances=disallow_negative_distances,
@@ -82,7 +82,7 @@ def _canonical_nj_iteration(
     D: np.ndarray,
     U: np.ndarray,
     index_to_id: np.ndarray,
-    clustered: np.ndarray,
+    remaining: np.ndarray,
     Z: np.ndarray,
     n_original: int,
     disallow_negative_distances: bool,
@@ -96,7 +96,7 @@ def _canonical_nj_iteration(
     if n_remaining > 2:
         # Search for the closest pair of nodes to join.
         i_min, j_min, searched = _canonical_nj_search(
-            D=D, U=U, clustered=clustered, n=n_remaining
+            D=D, U=U, remaining=remaining, n=n_remaining
         )
         assert i_min >= 0
         assert j_min >= 0
@@ -110,7 +110,7 @@ def _canonical_nj_iteration(
     else:
         # Termination. Join the two remaining nodes, placing the final node at the
         # midpoint.
-        i_min, j_min = np.nonzero(~clustered)[0]
+        i_min, j_min = np.nonzero(remaining)[0]
         d_ij = D[i_min, j_min]
         d_i = d_ij / 2
         d_j = d_ij / 2
@@ -157,7 +157,7 @@ def _canonical_nj_iteration(
             D=D,
             U=U,
             index_to_id=index_to_id,
-            clustered=clustered,
+            remaining=remaining,
             node=node,
             i_min=i_min,
             j_min=j_min,
@@ -169,24 +169,25 @@ def _canonical_nj_iteration(
 
 @numba.njit
 def _canonical_nj_search(
-    D: np.ndarray, U: np.ndarray, clustered: np.ndarray, n: int
+    D: np.ndarray, U: np.ndarray, remaining: np.ndarray, n: int
 ) -> tuple[int, int]:
     # Search for the closest pair of neighbouring nodes to join.
-    q_min = np.inf
+    q_min = numba.float32(np.inf)
     i_min = -1
     j_min = -1
     searched = 0
+    coefficient = numba.float32(n - 2)
     for i in range(D.shape[0]):
-        if clustered[i]:
+        if remaining[i] == 0:
             continue
         u_i = U[i]
         for j in range(i):
-            if clustered[j]:
+            if remaining[j] == 0:
                 continue
             searched += 1
             u_j = U[j]
             d = D[i, j]
-            q = (n - 2) * d - u_i - u_j
+            q = coefficient * d - u_i - u_j
             if q < q_min:
                 q_min = q
                 i_min = i
@@ -199,7 +200,7 @@ def _canonical_nj_update(
     D: np.ndarray,
     U: np.ndarray,
     index_to_id: np.ndarray,
-    clustered: np.ndarray,
+    remaining: np.ndarray,
     node: int,
     i_min: int,
     j_min: int,
@@ -207,7 +208,7 @@ def _canonical_nj_update(
 ) -> None:
     # Here we obsolete the row and column corresponding to the node at j_min, and we
     # reuse the row and column at i_min for the new node.
-    clustered[j_min] = True
+    remaining[j_min] = 0
     index_to_id[i_min] = node
 
     # Subtract out the distances for the nodes that have just been joined.
@@ -219,7 +220,7 @@ def _canonical_nj_update(
 
     # Update distances and divergence.
     for k in range(D.shape[0]):
-        if clustered[k] or k == i_min or k == j_min:
+        if remaining[k] == 0 or k == i_min or k == j_min:
             continue
 
         # Distance from k to the new node.

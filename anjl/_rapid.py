@@ -12,17 +12,16 @@ def rapid_nj(
     progress_options: Mapping = {},
     diagnostics=False,
     gc=100,
-    init=None,
+    # init=None,
 ) -> np.ndarray:
     """TODO"""
-    print("rapid_nj v5")
 
     # Make a copy of distance matrix D because we will overwrite it during the
     # algorithm.
     D = np.array(D, copy=True, order="C", dtype=np.float32)
 
     # Initialize the "divergence" array, containing sum of distances to other nodes.
-    U = np.sum(D, axis=1)
+    U = np.sum(D, axis=1, dtype=np.float32)
     u_max = U.max()
 
     # Set diagonal to inf to avoid self comparison sorting first.
@@ -72,8 +71,6 @@ def rapid_nj(
     timings = []
     searches = []
 
-    row_cache = 0
-
     # Begin iterating.
     for iteration in iterator:
         # Number of nodes remaining in this iteration.
@@ -91,7 +88,7 @@ def rapid_nj(
         before = time.time()
 
         # Perform one iteration of the neighbour-joining algorithm.
-        u_max, row_cache, searched = _rapid_nj_iteration(
+        u_max, searched = _rapid_nj_iteration(
             iteration=iteration,
             D=D,
             U=U,
@@ -103,8 +100,6 @@ def rapid_nj(
             n_original=n_original,
             disallow_negative_distances=disallow_negative_distances,
             u_max=u_max,
-            row_cache=row_cache,
-            init=init,
         )
 
         duration = time.time() - before
@@ -137,8 +132,8 @@ def _rapid_nj_gc(
                 continue
             nodes_sorted[i, sj_new] = id_j
             sj_new += 1
-        for sj in range(sj_new, nodes_sorted.shape[1]):
-            nodes_sorted[i, sj] = -1
+        # for sj in range(sj_new, nodes_sorted.shape[1]):
+        #     nodes_sorted[i, sj] = -1
     nodes_sorted = nodes_sorted[:, :n_remaining]
     return nodes_sorted
 
@@ -156,8 +151,6 @@ def _rapid_nj_iteration(
     n_original: int,
     disallow_negative_distances: bool,
     u_max: np.float32,
-    row_cache: np.int64,
-    init: str,
 ) -> np.float32:
     # This will be the identifier for the new node to be created in this iteration.
     node = iteration + n_original
@@ -167,7 +160,7 @@ def _rapid_nj_iteration(
 
     if n_remaining > 2:
         # Search for the closest pair of nodes to join.
-        i_min, j_min, row_cache, searched = _rapid_nj_search(
+        i_min, j_min, searched = _rapid_nj_search(
             D=D,
             U=U,
             nodes_sorted=nodes_sorted,
@@ -176,8 +169,6 @@ def _rapid_nj_iteration(
             id_to_index=id_to_index,
             n_remaining=n_remaining,
             u_max=u_max,
-            row_cache=row_cache,
-            init=init,
         )
         assert i_min >= 0
         assert j_min >= 0
@@ -201,7 +192,6 @@ def _rapid_nj_iteration(
         d_ij = D[i_min, j_min]
         d_i = d_ij / 2
         d_j = d_ij / 2
-        row_cache = -1
         searched = 0
 
     # Sanity checks.
@@ -254,7 +244,7 @@ def _rapid_nj_iteration(
             d_ij=d_ij,
         )
 
-    return u_max, row_cache, searched
+    return u_max, searched
 
 
 @numba.njit
@@ -267,94 +257,21 @@ def _rapid_nj_search(
     id_to_index: np.ndarray,
     n_remaining: int,
     u_max: np.float32,
-    row_cache: np.int64,
-    init: str,
 ) -> tuple[int, int, int]:
     # Initialize working variables.
-    q_min = np.inf
+    q_min = numba.float32(np.inf)
+    threshold = numba.float32(np.inf)
     i_min = -1
     j_min = -1
     searched = 0
-
-    if init == "rowcache":
-        # First pass...
-        id_i = index_to_id[row_cache]
-        if not clustered[id_i]:
-            u_i = U[row_cache]
-            for s in range(nodes_sorted.shape[1]):
-                id_j = nodes_sorted[row_cache, s]
-                if id_j < 0:
-                    break
-
-                # Skip if this node is already clustered or we are comparing to self.
-                if id_i == id_j or clustered[id_j]:
-                    continue
-
-                # Obtain column index in the distance matrix.
-                j = id_to_index[id_j]
-                assert j >= 0
-
-                # Calculate q.
-                d = D[row_cache, j]
-                u_j = U[j]
-                q = (n_remaining - 2) * d - u_i - u_j
-
-                # Compare with current minimum.
-                if q < q_min:
-                    q_min = q
-                    i_min = row_cache
-                    j_min = j
-
-    elif init == "firstval":
-        # First pass, initialise q_min with the first value in each row, which should be a
-        # good candidate for the minimum value because each row is sorted.
-        for i in range(nodes_sorted.shape[0]):
-            # Obtain node identifier for the current row.
-            id_i = index_to_id[i]
-            assert id_i >= 0
-
-            # Skip if this node is already clustered.
-            if clustered[id_i]:
-                continue
-
-            # Obtain divergence for node corresponding to this row.
-            u_i = U[i]
-
-            # Search the row to find the first non-clustered value.
-            for s in range(nodes_sorted.shape[1]):
-                # Obtain node identifier for the current item.
-                id_j = nodes_sorted[i, s]
-                if id_j < 0:
-                    break
-
-                # Skip if this node is already clustered or we are comparing to self.
-                if id_i == id_j or clustered[id_j]:
-                    continue
-
-                # Obtain column index in the distance matrix.
-                j = id_to_index[id_j]
-                assert j >= 0
-
-                # Calculate q.
-                d = D[i, j]
-                u_j = U[j]
-                q = (n_remaining - 2) * d - u_i - u_j
-
-                # Compare with current minimum.
-                if q < q_min:
-                    q_min = q
-                    i_min = i
-                    j_min = j
-
-                # Break here as we only want to find the first non-clustered value in this
-                # pass.
-                break
+    coefficient = numba.float32(n_remaining - 2)
+    m = nodes_sorted.shape[0]
+    n = nodes_sorted.shape[1]
 
     # Second pass, search all values up to threshold.
-    for i in range(nodes_sorted.shape[0]):
+    for i in range(m):
         # Obtain node identifier for the current row.
         id_i = index_to_id[i]
-        assert id_i >= 0
 
         # Skip if this node is already clustered.
         if clustered[id_i]:
@@ -364,43 +281,43 @@ def _rapid_nj_search(
         u_i = U[i]
 
         # Search the row up to threshold.
-        for s in range(nodes_sorted.shape[1]):
-            searched += 1
-
+        for s in range(n):
             # Obtain node identifier for the current item.
             id_j = nodes_sorted[i, s]
+
+            searched += 1
+
+            # Skip if this node is already clustered or we are comparing to self.
+            if clustered[id_j]:
+                continue
+
+            # TODO necessary?
             if id_j < 0:
                 break
 
-            # Skip if this node is already clustered or we are comparing to self.
-            if id_i == id_j or clustered[id_j]:
-                continue
-
             # Obtain column index in the distance matrix.
             j = id_to_index[id_j]
-            # assert j >= 0
 
             # Partially calculate q.
             d = D[i, j]
-            q_partial = (n_remaining - 2) * d - u_i
+            q_partial = coefficient * d - u_i
 
             # Limit search. Because the row is sorted, if we are already above this
             # threshold then we know there is no need to search remaining nodes in the
             # row.
-            if q_partial - u_max >= q_min:
+            if q_partial >= threshold:
                 break
 
             # Fully calculate q.
             u_j = U[j]
             q = q_partial - u_j
             if q < q_min:
-                if i_min != i and i_min != j:
-                    row_cache = i_min
                 q_min = q
+                threshold = q_min + u_max
                 i_min = i
                 j_min = j
 
-    return i_min, j_min, row_cache, searched
+    return i_min, j_min, searched
 
 
 @numba.njit
@@ -432,7 +349,6 @@ def _rapid_nj_update(
         if i != i_min and i != j_min:
             U[i] -= D[i, i_min]
             U[i] -= D[i, j_min]
-    U[j_min] = 0  # Set 0 to make sure max calculation is correct.
 
     # Initialize divergence for the new node.
     u_new = np.float32(0)

@@ -31,11 +31,12 @@ tqdm = "*"
 ipywidgets = "*"
 ipykernel = "*"
 pandas-stubs = "*"
+profila = "*"
 
 # Use the "extras" feature to allow testing with different versions
 # of numpy via github actions.
 [tool.poetry.extras]
-dev = ["pytest", "pytest-xdist", "notebook", "jupyterlab", "pre-commit", "ruff", "snakeviz", "mypy", "memory-profiler", "zarr", "scipy", "tqdm", "ipywidgets", "ipykernel", "pandas-stubs"]
+dev = ["pytest", "pytest-xdist", "notebook", "jupyterlab", "pre-commit", "ruff", "snakeviz", "mypy", "memory-profiler", "zarr", "scipy", "tqdm", "ipywidgets", "ipykernel", "pandas-stubs", "profila"]
 
 # https://pypi.org/project/poetry-dynamic-versioning/
 [tool.poetry-dynamic-versioning]
