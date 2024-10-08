@@ -77,7 +77,7 @@ def canonical_nj(
     return Z
 
 
-@numba.njit
+# @numba.njit
 def _canonical_iteration(
     iteration: int,
     D: np.ndarray,
@@ -188,10 +188,10 @@ def _canonical_search(
             visited += 1
             if obsolete[j]:
                 continue
-            searched += 1
             u_j = U[j]
             d = D[i, j]
             q = coefficient * d - u_i - u_j
+            searched += 1
             if q < q_min:
                 q_min = q
                 i_min = i

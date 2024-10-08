@@ -144,7 +144,7 @@ def _rapid_gc(
     return nodes_sorted
 
 
-@numba.njit
+# @numba.njit
 def _rapid_iteration(
     iteration: int,
     D: np.ndarray,
@@ -286,6 +286,9 @@ def _rapid_search(
         if obsolete[i]:
             continue
 
+        # # Obtain identifier for this row.
+        # id_i = index_to_id[i]
+
         # Obtain divergence for node corresponding to this row.
         u_i = U[i]
 
@@ -296,7 +299,7 @@ def _rapid_search(
             # Obtain node identifier for the current item.
             id_j = nodes_sorted[i, s]
 
-            # Skip if this node is already clustered or we are comparing to self.
+            # Skip if this node is already clustered.
             if clustered[id_j]:
                 continue
 
@@ -317,11 +320,11 @@ def _rapid_search(
             if q_partial >= threshold:
                 break
 
-            searched += 1
-
             # Fully calculate q.
             u_j = U[j]
             q = q_partial - u_j
+            searched += 1
+
             if q < q_min:
                 q_min = q
                 threshold = q_min + u_max
