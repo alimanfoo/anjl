@@ -60,7 +60,10 @@ def rapid_nj(
 
     # Keep track of which nodes have been clustered and are now "obsolete". N.B., this
     # is different from canonical implementation because we index here by node ID.
-    clustered = np.zeros(shape=n_nodes - 1, dtype="bool")
+    clustered = np.zeros(shape=n_nodes - 1, dtype=bool)
+
+    # Convenience to also keep track of which rows are no longer in use.
+    obsolete = np.zeros(shape=n_original, dtype=bool)
 
     # Support wrapping the iterator in a progress bar.
     iterator = range(n_internal)
@@ -83,6 +86,7 @@ def rapid_nj(
                 nodes_sorted=nodes_sorted,
                 index_to_id=index_to_id,
                 clustered=clustered,
+                obsolete=obsolete,
                 n_remaining=n_remaining,
             )
 
@@ -97,6 +101,7 @@ def rapid_nj(
             index_to_id=index_to_id,
             id_to_index=id_to_index,
             clustered=clustered,
+            obsolete=obsolete,
             Z=Z,
             n_original=n_original,
             disallow_negative_distances=disallow_negative_distances,
@@ -119,12 +124,13 @@ def _rapid_gc(
     nodes_sorted: np.ndarray,
     index_to_id: np.ndarray,
     clustered: np.ndarray,
+    obsolete: np.ndarray,
     n_remaining: int,
 ):
     for i in range(nodes_sorted.shape[0]):
-        id_i = index_to_id[i]
-        if clustered[id_i]:
+        if obsolete[i]:
             continue
+        id_i = index_to_id[i]
         sj_new = 0
         for sj in range(nodes_sorted.shape[1]):
             id_j = nodes_sorted[i, sj]
@@ -134,8 +140,6 @@ def _rapid_gc(
                 continue
             nodes_sorted[i, sj_new] = id_j
             sj_new += 1
-        # for sj in range(sj_new, nodes_sorted.shape[1]):
-        #     nodes_sorted[i, sj] = -1
     nodes_sorted = nodes_sorted[:, :n_remaining]
     return nodes_sorted
 
@@ -149,6 +153,7 @@ def _rapid_iteration(
     index_to_id: np.ndarray,
     id_to_index: np.ndarray,
     clustered: np.ndarray,
+    obsolete: np.ndarray,
     Z: np.ndarray,
     n_original: int,
     disallow_negative_distances: bool,
@@ -167,6 +172,7 @@ def _rapid_iteration(
             U=U,
             nodes_sorted=nodes_sorted,
             clustered=clustered,
+            obsolete=obsolete,
             index_to_id=index_to_id,
             id_to_index=id_to_index,
             n_remaining=n_remaining,
@@ -239,6 +245,7 @@ def _rapid_iteration(
             index_to_id=index_to_id,
             id_to_index=id_to_index,
             clustered=clustered,
+            obsolete=obsolete,
             node=node,
             child_i=child_i,
             child_j=child_j,
@@ -256,6 +263,7 @@ def _rapid_search(
     U: np.ndarray,
     nodes_sorted: np.ndarray,
     clustered: np.ndarray,
+    obsolete: np.ndarray,
     index_to_id: np.ndarray,
     id_to_index: np.ndarray,
     n_remaining: int,
@@ -274,11 +282,8 @@ def _rapid_search(
 
     # Second pass, search all values up to threshold.
     for i in range(m):
-        # Obtain node identifier for the current row.
-        id_i = index_to_id[i]
-
-        # Skip if this node is already clustered.
-        if clustered[id_i]:
+        # Skip if row is no longer in use.
+        if obsolete[i]:
             continue
 
         # Obtain divergence for node corresponding to this row.
@@ -295,7 +300,7 @@ def _rapid_search(
             if clustered[id_j]:
                 continue
 
-            # TODO necessary?
+            # Break at end of nodes.
             if id_j < 0:
                 break
 
@@ -334,6 +339,7 @@ def _rapid_update(
     index_to_id: np.ndarray,
     id_to_index: np.ndarray,
     clustered: np.ndarray,
+    obsolete: np.ndarray,
     node: int,
     child_i: int,
     child_j: int,
@@ -341,10 +347,11 @@ def _rapid_update(
     j_min: int,
     d_ij: float,
 ) -> np.float32:
-    # Update data structures. Here we obsolete the row and column corresponding to the
-    # node at j_min, and we reuse the row and column at i_min for the new node.
+    # Update data structures. Here we obsolete the row corresponding to the node at
+    # j_min, and we reuse the row at i_min for the new node.
     clustered[child_i] = True
     clustered[child_j] = True
+    obsolete[j_min] = True
     index_to_id[i_min] = node
     id_to_index[node] = i_min
     id_to_index[child_i] = -1
@@ -397,13 +404,22 @@ def _rapid_update(
     if u_new > u_max:
         u_max = u_new
 
-    # Update the sorted distances and indices for the new node.
-    distances_new = D[i_min]
-    indices_new = np.argsort(distances_new)
-    ids_new = np.take(index_to_id, indices_new)
-    clustered_new = np.take(clustered, ids_new)
-    ids_new = ids_new[~clustered_new]
-    nodes_sorted[i_min, : ids_new.shape[0]] = ids_new
-    nodes_sorted[i_min, ids_new.shape[0] :] = -1
+    active = ~obsolete
+    distances_active = D[i_min, active]
+    ids_active = index_to_id[active]
+    ix_sorted = np.argsort(distances_active)
+    sorted_ids_new = ids_active[ix_sorted]
+
+    # # Update the sorted distances and indices for the new node.
+    # distances_new = D[i_min]
+    # sorted_indices_new = np.argsort(distances_new)
+    # sorted_ids_new = np.take(index_to_id, sorted_indices_new)
+
+    # # Remove any clustered nodes.
+    # clustered_new = np.take(clustered, sorted_ids_new)
+    # sorted_ids_new = sorted_ids_new[~clustered_new]
+
+    nodes_sorted[i_min, : sorted_ids_new.shape[0]] = sorted_ids_new
+    nodes_sorted[i_min, sorted_ids_new.shape[0] :] = -1
 
     return u_max
