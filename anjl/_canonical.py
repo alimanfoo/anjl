@@ -11,7 +11,6 @@ def canonical_nj(
     progress: Callable | None = None,
     progress_options: Mapping = {},
     diagnostics=False,
-    gc=100,
 ) -> np.ndarray:
     """TODO"""
 
@@ -55,12 +54,6 @@ def canonical_nj(
 
     # Begin iterating.
     for iteration in iterator:
-        # Periodically compact data structures.
-        if gc and iteration > 0 and iteration % gc == 0:
-            D, U, index_to_id, obsolete = _canonical_gc(
-                D=D, U=U, index_to_id=index_to_id, obsolete=obsolete
-            )
-
         before = time.time()
         # Perform one iteration of the neighbour-joining algorithm.
         searched, visited = _canonical_iteration(
@@ -82,37 +75,6 @@ def canonical_nj(
         return Z, np.array(timings), np.array(searches), np.array(visits)
 
     return Z
-
-
-@numba.njit
-def _canonical_gc(
-    D: np.ndarray,
-    U: np.ndarray,
-    index_to_id: np.ndarray,
-    obsolete: np.ndarray,
-):
-    i_new = 0
-    n = D.shape[0]
-    for i in range(n):
-        if obsolete[i]:
-            continue
-        j_new = 0
-        for j in range(i):
-            if obsolete[j]:
-                continue
-            d = D[i, j]
-            D[i_new, j_new] = d
-            D[j_new, i_new] = d
-            j_new += 1
-        U[i_new] = U[i]
-        index_to_id[i_new] = index_to_id[i]
-        obsolete[i_new] = obsolete[i]
-        i_new += 1
-    D = D[:i_new, :i_new]
-    U = U[:i_new]
-    index_to_id = index_to_id[:i_new]
-    obsolete = obsolete[:i_new]
-    return D, U, index_to_id, obsolete
 
 
 @numba.njit
