@@ -318,7 +318,9 @@ def _rapid_search(
     assert m == D_sorted.shape[0]
     assert n == D_sorted.shape[1]
 
-    # First pass, seed with first in each row.
+    # First pass, seed q_min and threshold with first in each row. This is suggested
+    # in the original paper, but I'm not sure it actually makes much if any difference
+    # in practice.
     for i in range(m):
         if obsolete[i]:
             continue
