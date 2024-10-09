@@ -1,21 +1,11 @@
 from textwrap import dedent
-import numpy as np
 import anjl
 
 
 def test_to_string():
     # This example comes from Amelia Harrison's blog.
     # https://www.tenderisthebyte.com/blog/2022/08/31/neighbor-joining-trees/
-
-    D = np.array(
-        [  # A B C D
-            [0, 4, 5, 10],
-            [4, 0, 7, 12],
-            [5, 7, 0, 9],
-            [10, 12, 9, 0],
-        ],
-        dtype=np.float32,
-    )
+    D, _ = anjl.data.example_1()
     Z = anjl.canonical_nj(D)
 
     # String value.
@@ -29,6 +19,3 @@ def test_to_string():
                     Leaf(id=1, dist=3.0)
     """).strip()
     assert anjl.to_string(Z) == expected_str
-
-
-# TODO test map_internal_to_leaves()
