@@ -62,27 +62,8 @@ def test_amelia_harrison_example():
     # Expect 2 leaves in the clade.
     assert int(leaves) == 2
 
-    # Second iteration.
-    left, right, ldist, rdist, leaves = Z[1]
-    # Expect nodes C and Z to be joined.
-    assert int(left) == 2
-    assert int(right) == 4
-    assert_allclose(ldist, 2)
-    assert_allclose(rdist, 2)
-    assert int(leaves) == 3
-
-    # Third iteration (termination).
-    left, right, ldist, rdist, leaves = Z[2]
-    # Expect nodes D and Y to be joined.
-    assert int(left) == 3
-    assert int(right) == 5
-    # N.B., we handle termination by placing the final
-    # (root) node at the midpoint between the last two
-    # children. This is equivalent to placing an edge
-    # directly between the last two children.
-    assert_allclose(ldist, 3.5)
-    assert_allclose(rdist, 3.5)
-    assert int(leaves) == 4
+    # Further iterations cannot be tested because there are
+    # different ways the remaining nodes could be joined.
 
 
 def test_wikipedia_example():

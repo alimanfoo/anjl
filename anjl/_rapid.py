@@ -310,17 +310,35 @@ def _rapid_search(
     threshold = numba.float32(np.inf)
     i_min = -1
     j_min = -1
-    searched = 0
-    visited = 0
+    # searched = 0
+    # visited = 0
     coefficient = numba.float32(n_remaining - 2)
     m = nodes_sorted.shape[0]
     n = nodes_sorted.shape[1]
     assert m == D_sorted.shape[0]
     assert n == D_sorted.shape[1]
 
-    # indices_available = np.nonzero(~obsolete)[0]
-    # # np.random.shuffle(indices_available)
-    # for i in indices_available:
+    # First pass, seed with first in each row.
+    for i in range(m):
+        if obsolete[i]:
+            continue
+        u_i = U[i]
+        node_j = nodes_sorted[i, 0]
+        assert node_j >= 0
+        if clustered[node_j]:
+            continue
+        node_i = index_to_id[i]
+        if node_i == node_j:
+            continue
+        d = D_sorted[i, 0]
+        j = id_to_index[node_j]
+        u_j = U[j]
+        q = coefficient * d - u_i - u_j
+        if q < q_min:
+            q_min = q
+            threshold = q_min + u_max
+            i_min = i
+            j_min = j
 
     # Search all values up to threshold.
     for i in range(m):
@@ -331,18 +349,18 @@ def _rapid_search(
         # Obtain divergence for node corresponding to this row.
         u_i = U[i]
 
-        # Get identifier for node in this row.
+        # Obtain identifier for node corresponding to the current row.
         node_i = index_to_id[i]
 
         # Search the row up to threshold.
-        for s in range(n):
-            visited += 1
+        for s in range(1, n):
+            # visited += 1
 
             # Obtain node identifier for the current item.
             node_j = nodes_sorted[i, s]
 
             # Skip if this node is already clustered or self comparison.
-            if node_i == node_j or clustered[node_j]:
+            if clustered[node_j] or node_i == node_j:
                 continue
 
             # Break at end of nodes.
@@ -365,7 +383,7 @@ def _rapid_search(
             j = id_to_index[node_j]
             u_j = U[j]
             q = q_partial - u_j
-            searched += 1
+            # searched += 1
 
             if q < q_min:
                 q_min = q
