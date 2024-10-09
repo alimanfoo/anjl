@@ -23,6 +23,12 @@ import anjl
 help(anjl.canonical_nj)
 ```
 
+### Rapid neighbour-joining implementation
+
+```python
+help(anjl.rapid_nj)
+```
+
 ### Plot a tree using the equal-angles layout
 
 ```python

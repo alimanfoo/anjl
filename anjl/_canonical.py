@@ -9,6 +9,8 @@ def canonical_nj(
     disallow_negative_distances: bool = True,
     progress: Callable | None = None,
     progress_options: Mapping = {},
+    #     diagnostics=False,
+    # ) -> np.ndarray | tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 ) -> np.ndarray:
     """TODO"""
 
@@ -46,9 +48,16 @@ def canonical_nj(
     if progress:
         iterator = progress(iterator, **progress_options)
 
+    # timings = []
+    # searches = []
+    # visits = []
+
     # Begin iterating.
     for iteration in iterator:
+        # before = time.time()
+
         # Perform one iteration of the neighbour-joining algorithm.
+        # searched, visited = _canonical_iteration(
         _canonical_iteration(
             iteration=iteration,
             D=D,
@@ -59,6 +68,14 @@ def canonical_nj(
             n_original=n_original,
             disallow_negative_distances=disallow_negative_distances,
         )
+
+        # duration = time.time() - before
+        # timings.append(duration)
+        # searches.append(searched)
+        # visits.append(visited)
+
+    # if diagnostics:
+    #     return Z, np.array(timings), np.array(searches), np.array(visits)
 
     return Z
 
@@ -73,6 +90,7 @@ def _canonical_iteration(
     Z: np.ndarray,
     n_original: int,
     disallow_negative_distances: bool,
+    # ) -> tuple[int, int]:
 ) -> None:
     # This will be the identifier for the new node to be created in this iteration.
     node = iteration + n_original
@@ -82,6 +100,7 @@ def _canonical_iteration(
 
     if n_remaining > 2:
         # Search for the closest pair of nodes to join.
+        # i_min, j_min, searched, visited = _canonical_search(
         i_min, j_min = _canonical_search(D=D, U=U, obsolete=obsolete, n=n_remaining)
         assert i_min >= 0
         assert j_min >= 0
@@ -99,6 +118,8 @@ def _canonical_iteration(
         d_ij = D[i_min, j_min]
         d_i = d_ij / 2
         d_j = d_ij / 2
+        # searched = 0
+        # visited = 0
 
     # Handle possibility of negative distances.
     if disallow_negative_distances:
@@ -148,15 +169,23 @@ def _canonical_iteration(
             d_ij=d_ij,
         )
 
+    # return searched, visited
+
 
 @numba.njit
 def _canonical_search(
-    D: np.ndarray, U: np.ndarray, obsolete: np.ndarray, n: int
+    D: np.ndarray,
+    U: np.ndarray,
+    obsolete: np.ndarray,
+    n: int,
+    # ) -> tuple[int, int, int, int]:
 ) -> tuple[int, int]:
     # Search for the closest pair of neighbouring nodes to join.
     q_min = numba.float32(np.inf)
     i_min = -1
     j_min = -1
+    # searched = 0
+    # visited = 0
     coefficient = numba.float32(n - 2)
     m = D.shape[0]
     for i in range(m):
@@ -164,15 +193,18 @@ def _canonical_search(
             continue
         u_i = U[i]
         for j in range(i):
+            # visited += 1
             if obsolete[j]:
                 continue
             u_j = U[j]
             d = D[i, j]
             q = coefficient * d - u_i - u_j
+            # searched += 1
             if q < q_min:
                 q_min = q
                 i_min = i
                 j_min = j
+    # return i_min, j_min, searched, visited
     return i_min, j_min
 
 
