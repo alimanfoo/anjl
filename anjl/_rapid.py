@@ -2,7 +2,7 @@ from typing import Callable
 from collections.abc import Mapping
 import numpy as np
 import numba
-import time
+# import time
 
 
 @numba.njit
@@ -21,9 +21,10 @@ def rapid_nj(
     disallow_negative_distances: bool = True,
     progress: Callable | None = None,
     progress_options: Mapping = {},
-    diagnostics=False,
+    # diagnostics=False,
     gc=100,
-) -> np.ndarray | tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    # ) -> np.ndarray | tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> np.ndarray:
     """TODO"""
 
     # Make a copy of distance matrix D because we will overwrite it during the
@@ -88,9 +89,9 @@ def rapid_nj(
         iterator = progress(iterator, **progress_options)
 
     # Record iteration timings.
-    timings = []
-    searches = []
-    visits = []
+    # timings = []
+    # searches = []
+    # visits = []
 
     # Begin iterating.
     for iteration in iterator:
@@ -116,10 +117,11 @@ def rapid_nj(
                 n_remaining=n_remaining,
             )
 
-        before = time.time()
+        # before = time.time()
 
         # Perform one iteration of the neighbour-joining algorithm.
-        u_max, searched, visited = _rapid_iteration(
+        # u_max, searched, visited = _rapid_iteration(
+        u_max = _rapid_iteration(
             iteration=iteration,
             D=D,
             D_sorted=D_sorted,
@@ -135,13 +137,13 @@ def rapid_nj(
             u_max=u_max,
         )
 
-        duration = time.time() - before
-        timings.append(duration)
-        searches.append(searched)
-        visits.append(visited)
+    #     duration = time.time() - before
+    #     timings.append(duration)
+    #     searches.append(searched)
+    #     visits.append(visited)
 
-    if diagnostics:
-        return Z, np.array(timings), np.array(searches), np.array(visits)
+    # if diagnostics:
+    #     return Z, np.array(timings), np.array(searches), np.array(visits)
 
     return Z
 
@@ -185,7 +187,8 @@ def _rapid_iteration(
     n_original: int,
     disallow_negative_distances: bool,
     u_max: np.float32,
-) -> tuple[np.float32, int, int]:
+    # ) -> tuple[np.float32, int, int]:
+) -> np.float32:
     # This will be the identifier for the new node to be created in this iteration.
     node = iteration + n_original
 
@@ -194,7 +197,8 @@ def _rapid_iteration(
 
     if n_remaining > 2:
         # Search for the closest pair of nodes to join.
-        i_min, j_min, searched, visited = _rapid_search(
+        # i_min, j_min, searched, visited = _rapid_search(
+        i_min, j_min = _rapid_search(
             D_sorted=D_sorted,
             U=U,
             nodes_sorted=nodes_sorted,
@@ -227,8 +231,8 @@ def _rapid_iteration(
         d_ij = D[i_min, j_min]
         d_i = d_ij / 2
         d_j = d_ij / 2
-        searched = 0
-        visited = 0
+        # searched = 0
+        # visited = 0
 
     # Sanity checks.
     assert child_i >= 0
@@ -284,7 +288,8 @@ def _rapid_iteration(
             d_ij=d_ij,
         )
 
-    return u_max, searched, visited
+    # return u_max, searched, visited
+    return u_max
 
 
 @numba.njit
@@ -298,7 +303,8 @@ def _rapid_search(
     index_to_id: np.ndarray,
     n_remaining: int,
     u_max: np.float32,
-) -> tuple[int, int, int, int]:
+    # ) -> tuple[int, int, int, int]:
+) -> tuple[int, int]:
     # Initialize working variables.
     q_min = numba.float32(np.inf)
     threshold = numba.float32(np.inf)
@@ -367,7 +373,8 @@ def _rapid_search(
                 i_min = i
                 j_min = j
 
-    return i_min, j_min, searched, visited
+    # return i_min, j_min, searched, visited
+    return i_min, j_min
 
 
 @numba.njit
