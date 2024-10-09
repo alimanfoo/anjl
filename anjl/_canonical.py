@@ -11,7 +11,7 @@ def canonical_nj(
     progress: Callable | None = None,
     progress_options: Mapping = {},
     diagnostics=False,
-) -> np.ndarray:
+) -> np.ndarray | tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """TODO"""
 
     # Make a copy of distance matrix D because we will overwrite it during the
@@ -87,7 +87,7 @@ def _canonical_iteration(
     Z: np.ndarray,
     n_original: int,
     disallow_negative_distances: bool,
-) -> None:
+) -> tuple[int, int]:
     # This will be the identifier for the new node to be created in this iteration.
     node = iteration + n_original
 
@@ -172,7 +172,7 @@ def _canonical_iteration(
 @numba.njit
 def _canonical_search(
     D: np.ndarray, U: np.ndarray, obsolete: np.ndarray, n: int
-) -> tuple[int, int]:
+) -> tuple[int, int, int, int]:
     # Search for the closest pair of neighbouring nodes to join.
     q_min = numba.float32(np.inf)
     i_min = -1

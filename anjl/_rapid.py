@@ -5,6 +5,17 @@ import numba
 import time
 
 
+@numba.njit
+def _setup_distance(D):
+    # Set the diagonal and upper triangle to inf so we can skip self-comparisons and
+    # avoid double-comparison between leaf nodes.
+    D_sorted = D.copy()
+    for i in range(D_sorted.shape[0]):
+        for j in range(i, D_sorted.shape[1]):
+            D_sorted[i, j] = np.inf
+    return D_sorted
+
+
 def rapid_nj(
     D: np.ndarray,
     disallow_negative_distances: bool = True,
@@ -12,7 +23,7 @@ def rapid_nj(
     progress_options: Mapping = {},
     diagnostics=False,
     gc=100,
-) -> np.ndarray:
+) -> np.ndarray | tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """TODO"""
 
     # Make a copy of distance matrix D because we will overwrite it during the
@@ -24,15 +35,19 @@ def rapid_nj(
     u_max = U.max()
 
     # Set diagonal to inf to avoid self comparison sorting first.
-    for i in range(D.shape[0]):
-        D[i, i] = np.inf
-
+    # for i in range(D.shape[0]):
+    #     D[i, i] = np.inf
+    #
     # Obtain node identifiers to sort the distance matrix row-wise.
-    nodes_sorted = np.argsort(D, axis=1)
-    assert D.shape == nodes_sorted.shape
-
+    # nodes_sorted = np.argsort(D, axis=1)
+    #
     # Make another copy of the distance matrix sorted.
-    D_sorted = np.take_along_axis(D, nodes_sorted, axis=1)
+    # D_sorted = np.take_along_axis(D, nodes_sorted, axis=1)
+
+    # Set up a sorted version of the distance array.
+    D_sorted = _setup_distance(D)
+    nodes_sorted = np.argsort(D_sorted, axis=1)
+    D_sorted = np.take_along_axis(D_sorted, nodes_sorted, axis=1)
 
     # Number of original observations.
     n_original = D.shape[0]
@@ -138,7 +153,7 @@ def _rapid_gc(
     clustered: np.ndarray,
     obsolete: np.ndarray,
     n_remaining: int,
-):
+) -> tuple[np.ndarray, np.ndarray]:
     for i in range(nodes_sorted.shape[0]):
         if obsolete[i]:
             continue
@@ -170,7 +185,7 @@ def _rapid_iteration(
     n_original: int,
     disallow_negative_distances: bool,
     u_max: np.float32,
-) -> np.float32:
+) -> tuple[np.float32, int, int]:
     # This will be the identifier for the new node to be created in this iteration.
     node = iteration + n_original
 
@@ -185,6 +200,7 @@ def _rapid_iteration(
             nodes_sorted=nodes_sorted,
             clustered=clustered,
             obsolete=obsolete,
+            index_to_id=index_to_id,
             id_to_index=id_to_index,
             n_remaining=n_remaining,
             u_max=u_max,
@@ -279,9 +295,10 @@ def _rapid_search(
     clustered: np.ndarray,
     obsolete: np.ndarray,
     id_to_index: np.ndarray,
+    index_to_id: np.ndarray,
     n_remaining: int,
     u_max: np.float32,
-) -> tuple[int, int, int]:
+) -> tuple[int, int, int, int]:
     # Initialize working variables.
     q_min = numba.float32(np.inf)
     threshold = numba.float32(np.inf)
@@ -308,6 +325,9 @@ def _rapid_search(
         # Obtain divergence for node corresponding to this row.
         u_i = U[i]
 
+        # Get identifier for node in this row.
+        node_i = index_to_id[i]
+
         # Search the row up to threshold.
         for s in range(n):
             visited += 1
@@ -315,13 +335,13 @@ def _rapid_search(
             # Obtain node identifier for the current item.
             node_j = nodes_sorted[i, s]
 
+            # Skip if this node is already clustered or self comparison.
+            if node_i == node_j or clustered[node_j]:
+                continue
+
             # Break at end of nodes.
             if node_j < 0:
                 break
-
-            # Skip if this node is already clustered.
-            if clustered[node_j]:
-                continue
 
             # Access distance.
             d = D_sorted[i, s]
@@ -383,7 +403,7 @@ def _rapid_update(
     u_new = np.float32(0)
 
     # Find new max.
-    u_max = np.float32(-np.inf)
+    u_max = np.float32(0)
 
     # Update distances and divergence.
     for k in range(D.shape[0]):
@@ -391,15 +411,15 @@ def _rapid_update(
             continue
 
         # Calculate distance from k to the new node.
-        d_ik = D[k, i_min]
-        d_jk = D[k, j_min]
-        d_k_new = 0.5 * (d_ik + d_jk - d_ij)
+        d_ki = D[k, i_min]
+        d_kj = D[k, j_min]
+        d_k_new = 0.5 * (d_ki + d_kj - d_ij)
         D[i_min, k] = d_k_new
         D[k, i_min] = d_k_new
 
         # Subtract out the distances for the nodes that have just been joined and add
         # in distance for the new node.
-        u_k = U[k] - d_ik - d_jk + d_k_new
+        u_k = U[k] - d_ki - d_kj + d_k_new
         U[k] = u_k
 
         # Record new max.
@@ -410,6 +430,7 @@ def _rapid_update(
         u_new += d_k_new
 
         # Distance from k to the obsolete node.
+        D[j_min, k] = np.inf
         D[k, j_min] = np.inf
 
     # Store divergence for the new node.
@@ -435,6 +456,6 @@ def _rapid_update(
     nodes_sorted[i_min, :p] = nodes_sorted_new
     nodes_sorted[i_min, p:] = -1
     D_sorted[i_min, :p] = distances_sorted_new
-    # D_sorted[i_min, p:] = np.inf
+    D_sorted[i_min, p:] = np.inf
 
     return u_max
