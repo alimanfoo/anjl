@@ -393,13 +393,13 @@ def _rapid_update(
         # Calculate distance from k to the new node.
         d_ik = D[k, i_min]
         d_jk = D[k, j_min]
-        d_k = 0.5 * (d_ik + d_jk - d_ij)
-        D[i_min, k] = d_k
-        D[k, i_min] = d_k
+        d_k_new = 0.5 * (d_ik + d_jk - d_ij)
+        D[i_min, k] = d_k_new
+        D[k, i_min] = d_k_new
 
         # Subtract out the distances for the nodes that have just been joined and add
         # in distance for the new node.
-        u_k = U[k] - d_ik - d_jk + d_k
+        u_k = U[k] - d_ik - d_jk + d_k_new
         U[k] = u_k
 
         # Record new max.
@@ -407,7 +407,7 @@ def _rapid_update(
             u_max = u_k
 
         # Accumulate divergence for the new node.
-        u_new += d_k
+        u_new += d_k_new
 
         # Distance from k to the obsolete node.
         D[k, j_min] = np.inf
@@ -435,6 +435,6 @@ def _rapid_update(
     nodes_sorted[i_min, :p] = nodes_sorted_new
     nodes_sorted[i_min, p:] = -1
     D_sorted[i_min, :p] = distances_sorted_new
-    D_sorted[i_min, p:] = np.inf
+    # D_sorted[i_min, p:] = np.inf
 
     return u_max
