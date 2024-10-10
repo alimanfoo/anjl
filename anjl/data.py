@@ -73,8 +73,8 @@ def mosquitoes():
     import importlib.resources
     from . import resources
 
-    dist_path = importlib.resources.path(resources, "mosquitoes.npy")
-    dist = np.load(dist_path)
-    leaf_data_path = importlib.resources.path(resources, "mosquitoes.csv")
-    leaf_data = pd.read_csv(leaf_data_path)
+    with importlib.resources.path(resources, "mosquitoes.npy") as dist_path:
+        dist = np.load(dist_path)
+    with importlib.resources.path(resources, "mosquitoes.csv") as leaf_data_path:
+        leaf_data = pd.read_csv(leaf_data_path)
     return dist, leaf_data
