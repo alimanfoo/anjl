@@ -1,0 +1,15 @@
+# See docs at: https://mystmd.org/guide/frontmatter
+version: 1
+project:
+  id: 07ba6502-843a-4b1a-9205-4c9504b2eea5
+  # title:
+  # description:
+  # keywords: []
+  # authors: []
+  github: https://github.com/alimanfoo/anjl
+  # To autogenerate a Table of Contents, run "myst init --write-toc"
+site:
+  template: article-theme
+  # options:
+  #   favicon: favicon.ico
+  #   logo: site_logo.png

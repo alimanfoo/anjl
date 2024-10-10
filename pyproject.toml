@@ -10,7 +10,7 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.13"
-numba = "^0.60.0"
+numba = ">=0.60.0"
 numpy = "*"
 pandas = "*"
 plotly = "*"
@@ -32,12 +32,11 @@ ipywidgets = "*"
 ipykernel = "*"
 pandas-stubs = "*"
 profila = "*"
-yaspin = "*"
 
 # Use the "extras" feature to allow testing with different versions
 # of numpy via github actions.
 [tool.poetry.extras]
-dev = ["pytest", "pytest-xdist", "notebook", "jupyterlab", "pre-commit", "ruff", "snakeviz", "mypy", "memory-profiler", "zarr", "scipy", "tqdm", "ipywidgets", "ipykernel", "pandas-stubs", "profila", "yaspin"]
+dev = ["pytest", "pytest-xdist", "notebook", "jupyterlab", "pre-commit", "ruff", "snakeviz", "mypy", "memory-profiler", "zarr", "scipy", "tqdm", "ipywidgets", "ipykernel", "pandas-stubs", "profila"]
 
 # https://pypi.org/project/poetry-dynamic-versioning/
 [tool.poetry-dynamic-versioning]
