@@ -4,6 +4,10 @@ import numpy as np
 import numba
 
 
+INT64_MIN = np.int64(np.iinfo(np.int64).min)
+FLOAT32_INF = np.float32(np.inf)
+
+
 def rapid_nj(
     D: np.ndarray,
     disallow_negative_distances: bool = True,
@@ -37,7 +41,7 @@ def rapid_nj(
     index_to_id = np.arange(n_original)
 
     # Map node IDs to row indices.
-    id_to_index = np.full(shape=n_nodes, fill_value=-1)
+    id_to_index = np.full(shape=n_nodes, fill_value=INT64_MIN)
     id_to_index[:n_original] = np.arange(n_original)
 
     # Initialise output. This is similar to the output that scipy hierarchical
@@ -101,10 +105,10 @@ def rapid_nj(
 def _rapid_setup_distance(D):
     # Set the diagonal and upper triangle to inf so we can skip self-comparisons and
     # avoid double-comparison between leaf nodes.
-    D_sorted = np.full(shape=D.shape, dtype=np.float32, fill_value=np.inf)
-    nodes_sorted = np.full(shape=D.shape, dtype=np.int64, fill_value=-1)
+    D_sorted = np.full(shape=D.shape, dtype=np.float32, fill_value=FLOAT32_INF)
+    nodes_sorted = np.full(shape=D.shape, dtype=np.int64, fill_value=INT64_MIN)
     for i in range(D.shape[0]):
-        D[i, i] = np.inf  # avoid self comparisons in all iterations
+        D[i, i] = FLOAT32_INF  # avoid self comparisons in all iterations
         d = D[i, :i]
         nx = np.argsort(d)
         dx = d[nx]
@@ -261,13 +265,13 @@ def _rapid_search(
     id_to_index: np.ndarray,
     n_remaining: int,
     u_max: np.float32,
-) -> tuple[int, int]:
+) -> tuple[np.int64, np.int64]:
     # Initialize working variables.
-    q_min = numba.float32(np.inf)
-    threshold = numba.float32(np.inf)
-    i_min = -1
-    j_min = -1
-    coefficient = numba.float32(n_remaining - 2)
+    q_min = FLOAT32_INF
+    threshold = FLOAT32_INF
+    i_min = INT64_MIN
+    j_min = INT64_MIN
+    coefficient = np.float32(n_remaining - 2)
     m = nodes_sorted.shape[0]
     n = nodes_sorted.shape[1]
     assert m == D_sorted.shape[0]
@@ -315,8 +319,8 @@ def _rapid_search(
             if q < q_min:
                 q_min = q
                 threshold = q_min + u_max
-                i_min = i
-                j_min = j
+                i_min = np.int64(i)
+                j_min = np.int64(j)
 
     return i_min, j_min
 
@@ -331,12 +335,12 @@ def _rapid_update(
     id_to_index: np.ndarray,
     clustered: np.ndarray,
     obsolete: np.ndarray,
-    parent: int,
-    child_i: int,
-    child_j: int,
-    i_min: int,
-    j_min: int,
-    d_ij: float,
+    parent: np.int64,
+    child_i: np.int64,
+    child_j: np.int64,
+    i_min: np.int64,
+    j_min: np.int64,
+    d_ij: np.float32,
 ) -> np.float32:
     # Update data structures. Here we obsolete the row corresponding to the node at
     # j_min, and we reuse the row at i_min for the new node.
@@ -381,8 +385,8 @@ def _rapid_update(
         u_new += d_k_new
 
         # Distance from k to the obsolete node.
-        # D[j_min, k] = np.inf  # not needed as this row is obsolete and never read
-        D[k, j_min] = np.inf
+        # D[j_min, k] = FLOAT32_INF  # not needed as this row is obsolete and never read
+        D[k, j_min] = FLOAT32_INF
 
     # Store divergence for the new node.
     U[i_min] = u_new
@@ -404,8 +408,8 @@ def _rapid_update(
     # Now update sorted nodes and distances.
     p = nodes_sorted_new.shape[0]
     nodes_sorted[i_min, :p] = nodes_sorted_new
-    nodes_sorted[i_min, p:] = -1
+    nodes_sorted[i_min, p:] = INT64_MIN
     D_sorted[i_min, :p] = distances_sorted_new
-    D_sorted[i_min, p:] = np.inf
+    D_sorted[i_min, p:] = FLOAT32_INF
 
     return u_max
