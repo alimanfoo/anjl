@@ -60,10 +60,10 @@ def rapid_nj(
 
     # Keep track of which nodes have been clustered and are now "obsolete". N.B., this
     # is different from canonical implementation because we index here by node ID.
-    clustered: NDArray[np.bool] = np.zeros(shape=n_nodes - 1, dtype=bool)
+    clustered: NDArray[np.bool_] = np.zeros(shape=n_nodes - 1, dtype=np.bool_)
 
     # Convenience to also keep track of which rows are no longer in use.
-    obsolete: NDArray[np.bool] = np.zeros(shape=n_original, dtype=bool)
+    obsolete: NDArray[np.bool_] = np.zeros(shape=n_original, dtype=np.bool_)
 
     # Support wrapping the iterator in a progress bar like tqdm.
     iterator = range(n_internal)
@@ -125,8 +125,8 @@ def _rapid_setup_distance(D: NDArray[np.float32]):
 def _rapid_gc(
     D_sorted: NDArray[np.float32],
     nodes_sorted: NDArray[np.int64],
-    clustered: NDArray[np.bool],
-    obsolete: NDArray[np.bool],
+    clustered: NDArray[np.bool_],
+    obsolete: NDArray[np.bool_],
     n_remaining: int,
 ) -> tuple[NDArray[np.int64], NDArray[np.float32]]:
     for i in range(nodes_sorted.shape[0]):
@@ -156,8 +156,8 @@ def _rapid_iteration(
     nodes_sorted: NDArray[np.int64],
     index_to_id: NDArray[np.int64],
     id_to_index: NDArray[np.int64],
-    clustered: NDArray[np.bool],
-    obsolete: NDArray[np.bool],
+    clustered: NDArray[np.bool_],
+    obsolete: NDArray[np.bool_],
     Z: NDArray[np.float32],
     n_original: int,
     disallow_negative_distances: bool,
@@ -264,8 +264,8 @@ def _rapid_search(
     D_sorted: NDArray[np.float32],
     U: NDArray[np.float32],
     nodes_sorted: NDArray[np.int64],
-    clustered: NDArray[np.bool],
-    obsolete: NDArray[np.bool],
+    clustered: NDArray[np.bool_],
+    obsolete: NDArray[np.bool_],
     id_to_index: NDArray[np.int64],
     n_remaining: int,
     u_max: np.float32,
@@ -337,8 +337,8 @@ def _rapid_update(
     nodes_sorted: NDArray[np.int64],
     index_to_id: NDArray[np.int64],
     id_to_index: NDArray[np.int64],
-    clustered: NDArray[np.bool],
-    obsolete: NDArray[np.bool],
+    clustered: NDArray[np.bool_],
+    obsolete: NDArray[np.bool_],
     parent: np.int64,
     child_i: np.int64,
     child_j: np.int64,

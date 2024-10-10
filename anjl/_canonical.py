@@ -45,7 +45,7 @@ def canonical_nj(
     U: NDArray[np.float32] = np.sum(D_copy, axis=1)
 
     # Keep track of which rows correspond to nodes that have been clustered.
-    obsolete: NDArray[np.bool] = np.zeros(shape=n_original, dtype=bool)
+    obsolete: NDArray[np.bool_] = np.zeros(shape=n_original, dtype=np.bool_)
 
     # Support wrapping the iterator in a progress bar.
     iterator = range(n_internal)
@@ -75,7 +75,7 @@ def _canonical_iteration(
     D: NDArray[np.float32],
     U: NDArray[np.float32],
     index_to_id: NDArray[np.int64],
-    obsolete: NDArray[np.bool],
+    obsolete: NDArray[np.bool_],
     Z: NDArray[np.float32],
     n_original: int,
     disallow_negative_distances: bool,
@@ -163,7 +163,7 @@ def _canonical_iteration(
 def _canonical_search(
     D: NDArray[np.float32],
     U: NDArray[np.float32],
-    obsolete: NDArray[np.bool],
+    obsolete: NDArray[np.bool_],
     n_remaining: int,
 ) -> tuple[np.int64, np.int64]:
     # Search for the closest pair of neighbouring nodes to join.
@@ -194,7 +194,7 @@ def _canonical_update(
     D: NDArray[np.float32],
     U: NDArray[np.float32],
     index_to_id: NDArray[np.int64],
-    obsolete: NDArray[np.bool],
+    obsolete: NDArray[np.bool_],
     parent: np.int64,
     i_min: np.int64,
     j_min: np.int64,
