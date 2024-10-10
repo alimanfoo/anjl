@@ -1,32 +1,35 @@
 from typing import Callable
 from collections.abc import Mapping
 import numpy as np
+from numpy.typing import NDArray
 import numba
 
 
 INT64_MIN = np.int64(np.iinfo(np.int64).min)
+FLOAT32_INF = np.float32(np.inf)
 
 
 def canonical_nj(
-    D: np.ndarray,
+    D: NDArray,
     disallow_negative_distances: bool = True,
     progress: Callable | None = None,
     progress_options: Mapping = {},
-) -> np.ndarray:
+) -> NDArray[np.float32]:
     """TODO"""
 
     # Make a copy of distance matrix D because we will overwrite it during the
     # algorithm.
-    D = np.array(D, copy=True, order="C", dtype=np.float32)
+    D_copy: NDArray[np.float32] = np.array(D, copy=True, order="C", dtype=np.float32)
+    del D
 
     # Number of original observations.
-    n_original = D.shape[0]
+    n_original = D_copy.shape[0]
 
     # Expected number of new (internal) nodes that will be created.
     n_internal = n_original - 1
 
     # Map row indices to node IDs.
-    index_to_id = np.arange(n_original)
+    index_to_id: NDArray[np.int64] = np.arange(n_original, dtype=np.int64)
 
     # Initialise output. This is similar to the output that scipy hierarchical
     # clustering functions return, where each row contains data for one internal node
@@ -36,13 +39,13 @@ def canonical_nj(
     # - distance to left child node
     # - distance to right child node
     # - total number of leaves
-    Z = np.zeros(shape=(n_internal, 5), dtype=np.float32)
+    Z: NDArray[np.float32] = np.zeros(shape=(n_internal, 5), dtype=np.float32)
 
     # Initialize the "divergence" array, containing sum of distances to other nodes.
-    U = np.sum(D, axis=1)
+    U: NDArray[np.float32] = np.sum(D_copy, axis=1)
 
     # Keep track of which rows correspond to nodes that have been clustered.
-    obsolete = np.zeros(shape=n_original, dtype=bool)
+    obsolete: NDArray[np.bool_] = np.zeros(shape=n_original, dtype=np.bool_)
 
     # Support wrapping the iterator in a progress bar.
     iterator = range(n_internal)
@@ -54,7 +57,7 @@ def canonical_nj(
         # Perform one iteration of the neighbour-joining algorithm.
         _canonical_iteration(
             iteration=iteration,
-            D=D,
+            D=D_copy,
             U=U,
             index_to_id=index_to_id,
             obsolete=obsolete,
@@ -69,11 +72,11 @@ def canonical_nj(
 @numba.njit
 def _canonical_iteration(
     iteration: int,
-    D: np.ndarray,
-    U: np.ndarray,
-    index_to_id: np.ndarray,
-    obsolete: np.ndarray,
-    Z: np.ndarray,
+    D: NDArray[np.float32],
+    U: NDArray[np.float32],
+    index_to_id: NDArray[np.int64],
+    obsolete: NDArray[np.bool_],
+    Z: NDArray[np.float32],
     n_original: int,
     disallow_negative_distances: bool,
 ) -> None:
@@ -85,7 +88,9 @@ def _canonical_iteration(
 
     if n_remaining > 2:
         # Search for the closest pair of nodes to join.
-        i_min, j_min = _canonical_search(D=D, U=U, obsolete=obsolete, n=n_remaining)
+        i_min, j_min = _canonical_search(
+            D=D, U=U, obsolete=obsolete, n_remaining=n_remaining
+        )
 
         # Calculate distances to the new internal node.
         d_ij = D[i_min, j_min]
@@ -156,16 +161,16 @@ def _canonical_iteration(
 
 @numba.njit
 def _canonical_search(
-    D: np.ndarray,
-    U: np.ndarray,
-    obsolete: np.ndarray,
-    n: int,
+    D: NDArray[np.float32],
+    U: NDArray[np.float32],
+    obsolete: NDArray[np.bool_],
+    n_remaining: int,
 ) -> tuple[np.int64, np.int64]:
     # Search for the closest pair of neighbouring nodes to join.
-    q_min = numba.float32(np.inf)
+    q_min = FLOAT32_INF
     i_min = INT64_MIN
     j_min = INT64_MIN
-    coefficient = numba.float32(n - 2)
+    coefficient = numba.float32(n_remaining - 2)
     m = D.shape[0]
     for i in range(m):
         if obsolete[i]:
@@ -186,14 +191,14 @@ def _canonical_search(
 
 @numba.njit
 def _canonical_update(
-    D: np.ndarray,
-    U: np.ndarray,
-    index_to_id: np.ndarray,
-    obsolete: np.ndarray,
-    parent: int,
-    i_min: int,
-    j_min: int,
-    d_ij: float,
+    D: NDArray[np.float32],
+    U: NDArray[np.float32],
+    index_to_id: NDArray[np.int64],
+    obsolete: NDArray[np.bool_],
+    parent: np.int64,
+    i_min: np.int64,
+    j_min: np.int64,
+    d_ij: np.float32,
 ) -> None:
     # Here we obsolete the row and column corresponding to the node at j_min, and we
     # reuse the row and column at i_min for the new node.

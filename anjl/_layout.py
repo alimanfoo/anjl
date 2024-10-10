@@ -1,10 +1,11 @@
 import math
 import numpy as np
+from numpy.typing import NDArray
 import pandas as pd
 
 
 def layout_equal_angle(
-    Z: np.ndarray,
+    Z: NDArray[np.float32],
     center_x: int | float = 0,
     center_y: int | float = 0,
     arc_start: int | float = 0,
@@ -74,7 +75,7 @@ def layout_equal_angle(
 def _layout_equal_angle(
     *,
     node: int,
-    Z: np.ndarray,
+    Z: NDArray[np.float32],
     leaf_nodes: list[tuple],
     internal_nodes: list[tuple],
     edges: list[tuple],

@@ -4,12 +4,13 @@ from typing import Literal
 import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
+from numpy.typing import NDArray
 import pandas as pd
 from ._layout import layout_equal_angle
 
 
 def plot_equal_angle(
-    Z: np.ndarray,
+    Z: NDArray[np.float32],
     leaf_data: pd.DataFrame | None = None,
     color: str | None = None,
     symbol: str | None = None,
@@ -208,7 +209,7 @@ def normalise_color_params(
 
 
 def decorate_tree(
-    Z: np.ndarray,
+    Z: NDArray[np.float32],
     df_internal_nodes: pd.DataFrame,
     df_leaf_nodes: pd.DataFrame,
     df_edges: pd.DataFrame,
@@ -240,7 +241,7 @@ def decorate_tree(
     return df_internal_nodes, df_leaf_nodes, df_edges
 
 
-def paint_internal(Z: np.ndarray, leaf_color_values: np.ndarray) -> np.ndarray:
+def paint_internal(Z: NDArray[np.float32], leaf_color_values: np.ndarray) -> np.ndarray:
     """TODO"""
 
     # For each internal node, create a set to store the colors
