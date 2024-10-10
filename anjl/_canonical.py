@@ -4,6 +4,9 @@ import numpy as np
 import numba
 
 
+INT64_MIN = np.int64(np.iinfo(np.int64).min)
+
+
 def canonical_nj(
     D: np.ndarray,
     disallow_negative_distances: bool = True,
@@ -157,11 +160,11 @@ def _canonical_search(
     U: np.ndarray,
     obsolete: np.ndarray,
     n: int,
-) -> tuple[int, int]:
+) -> tuple[np.int64, np.int64]:
     # Search for the closest pair of neighbouring nodes to join.
     q_min = numba.float32(np.inf)
-    i_min = -1
-    j_min = -1
+    i_min = INT64_MIN
+    j_min = INT64_MIN
     coefficient = numba.float32(n - 2)
     m = D.shape[0]
     for i in range(m):
@@ -176,8 +179,8 @@ def _canonical_search(
             q = coefficient * d - u_i - u_j
             if q < q_min:
                 q_min = q
-                i_min = i
-                j_min = j
+                i_min = np.int64(i)
+                j_min = np.int64(j)
     return i_min, j_min
 
 
