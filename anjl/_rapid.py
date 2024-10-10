@@ -2,18 +2,10 @@ from typing import Callable
 from collections.abc import Mapping
 import numpy as np
 import numba
-# import time
 
 
-@numba.njit
-def _setup_distance(D):
-    # Set the diagonal and upper triangle to inf so we can skip self-comparisons and
-    # avoid double-comparison between leaf nodes.
-    D_sorted = D.copy()
-    for i in range(D_sorted.shape[0]):
-        for j in range(i, D_sorted.shape[1]):
-            D_sorted[i, j] = np.inf
-    return D_sorted
+INT64_MIN = np.int64(np.iinfo(np.int64).min)
+FLOAT32_INF = np.float32(np.inf)
 
 
 def rapid_nj(
@@ -21,9 +13,7 @@ def rapid_nj(
     disallow_negative_distances: bool = True,
     progress: Callable | None = None,
     progress_options: Mapping = {},
-    # diagnostics=False,
     gc=100,
-    # ) -> np.ndarray | tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 ) -> np.ndarray:
     """TODO"""
 
@@ -35,20 +25,8 @@ def rapid_nj(
     U = np.sum(D, axis=1, dtype=np.float32)
     u_max = U.max()
 
-    # Set diagonal to inf to avoid self comparison sorting first.
-    # for i in range(D.shape[0]):
-    #     D[i, i] = np.inf
-    #
-    # Obtain node identifiers to sort the distance matrix row-wise.
-    # nodes_sorted = np.argsort(D, axis=1)
-    #
-    # Make another copy of the distance matrix sorted.
-    # D_sorted = np.take_along_axis(D, nodes_sorted, axis=1)
-
     # Set up a sorted version of the distance array.
-    D_sorted = _setup_distance(D)
-    nodes_sorted = np.argsort(D_sorted, axis=1)
-    D_sorted = np.take_along_axis(D_sorted, nodes_sorted, axis=1)
+    D_sorted, nodes_sorted = _rapid_setup_distance(D)
 
     # Number of original observations.
     n_original = D.shape[0]
@@ -63,7 +41,7 @@ def rapid_nj(
     index_to_id = np.arange(n_original)
 
     # Map node IDs to row indices.
-    id_to_index = np.full(shape=n_nodes, fill_value=-1)
+    id_to_index = np.full(shape=n_nodes, fill_value=INT64_MIN)
     id_to_index[:n_original] = np.arange(n_original)
 
     # Initialise output. This is similar to the output that scipy hierarchical
@@ -83,27 +61,13 @@ def rapid_nj(
     # Convenience to also keep track of which rows are no longer in use.
     obsolete = np.zeros(shape=n_original, dtype=bool)
 
-    # Support wrapping the iterator in a progress bar.
+    # Support wrapping the iterator in a progress bar like tqdm.
     iterator = range(n_internal)
     if progress:
         iterator = progress(iterator, **progress_options)
 
-    # Record iteration timings.
-    # timings = []
-    # searches = []
-    # visits = []
-
     # Begin iterating.
     for iteration in iterator:
-        # print("")
-        # print("iteration", iteration)
-        # print("D\n", D)
-        # print("D_sorted\n", D_sorted)
-        # print("nodes_sorted\n", nodes_sorted)
-        # print("U", U)
-        # print("index_to_id", index_to_id)
-        # print("id_to_index", id_to_index)
-
         # Number of nodes remaining in this iteration.
         n_remaining = n_original - iteration
 
@@ -117,10 +81,7 @@ def rapid_nj(
                 n_remaining=n_remaining,
             )
 
-        # before = time.time()
-
         # Perform one iteration of the neighbour-joining algorithm.
-        # u_max, searched, visited = _rapid_iteration(
         u_max = _rapid_iteration(
             iteration=iteration,
             D=D,
@@ -137,21 +98,29 @@ def rapid_nj(
             u_max=u_max,
         )
 
-    #     duration = time.time() - before
-    #     timings.append(duration)
-    #     searches.append(searched)
-    #     visits.append(visited)
-
-    # if diagnostics:
-    #     return Z, np.array(timings), np.array(searches), np.array(visits)
-
     return Z
 
 
 @numba.njit
+def _rapid_setup_distance(D):
+    # Set the diagonal and upper triangle to inf so we can skip self-comparisons and
+    # avoid double-comparison between leaf nodes.
+    D_sorted = np.full(shape=D.shape, dtype=np.float32, fill_value=FLOAT32_INF)
+    nodes_sorted = np.full(shape=D.shape, dtype=np.int64, fill_value=INT64_MIN)
+    for i in range(D.shape[0]):
+        D[i, i] = FLOAT32_INF  # avoid self comparisons in all iterations
+        d = D[i, :i]
+        nx = np.argsort(d)
+        dx = d[nx]
+        D_sorted[i, :i] = dx
+        nodes_sorted[i, :i] = nx
+    return D_sorted, nodes_sorted
+
+
+@numba.njit
 def _rapid_gc(
-    nodes_sorted: np.ndarray,
     D_sorted: np.ndarray,
+    nodes_sorted: np.ndarray,
     clustered: np.ndarray,
     obsolete: np.ndarray,
     n_remaining: int,
@@ -161,10 +130,12 @@ def _rapid_gc(
             continue
         j_new = 0
         for j in range(nodes_sorted.shape[1]):
-            id_j = nodes_sorted[i, j]
-            if clustered[id_j]:
+            node_j = nodes_sorted[i, j]
+            if node_j < 0:
+                break
+            if clustered[node_j]:
                 continue
-            nodes_sorted[i, j_new] = id_j
+            nodes_sorted[i, j_new] = node_j
             D_sorted[i, j_new] = D_sorted[i, j]
             j_new += 1
     nodes_sorted = nodes_sorted[:, :n_remaining]
@@ -187,31 +158,25 @@ def _rapid_iteration(
     n_original: int,
     disallow_negative_distances: bool,
     u_max: np.float32,
-    # ) -> tuple[np.float32, int, int]:
 ) -> np.float32:
     # This will be the identifier for the new node to be created in this iteration.
-    node = iteration + n_original
+    parent = iteration + n_original
 
     # Number of nodes remaining in this iteration.
     n_remaining = n_original - iteration
 
     if n_remaining > 2:
         # Search for the closest pair of nodes to join.
-        # i_min, j_min, searched, visited = _rapid_search(
         i_min, j_min = _rapid_search(
             D_sorted=D_sorted,
             U=U,
             nodes_sorted=nodes_sorted,
             clustered=clustered,
             obsolete=obsolete,
-            index_to_id=index_to_id,
             id_to_index=id_to_index,
             n_remaining=n_remaining,
             u_max=u_max,
         )
-        assert i_min >= 0
-        assert j_min >= 0
-        assert i_min != j_min
 
         # Get IDs for the nodes to be joined.
         child_i = index_to_id[i_min]
@@ -231,15 +196,14 @@ def _rapid_iteration(
         d_ij = D[i_min, j_min]
         d_i = d_ij / 2
         d_j = d_ij / 2
-        # searched = 0
-        # visited = 0
 
     # Sanity checks.
+    assert i_min >= 0
+    assert j_min >= 0
+    assert i_min != j_min
     assert child_i >= 0
     assert child_j >= 0
     assert child_i != child_j
-
-    # print("i_min", i_min, "j_min", j_min, "child_i", child_i, "child_j", child_j)
 
     # Handle possibility of negative distances.
     if disallow_negative_distances:
@@ -280,7 +244,7 @@ def _rapid_iteration(
             id_to_index=id_to_index,
             clustered=clustered,
             obsolete=obsolete,
-            node=node,
+            parent=parent,
             child_i=child_i,
             child_j=child_j,
             i_min=i_min,
@@ -288,7 +252,6 @@ def _rapid_iteration(
             d_ij=d_ij,
         )
 
-    # return u_max, searched, visited
     return u_max
 
 
@@ -300,47 +263,19 @@ def _rapid_search(
     clustered: np.ndarray,
     obsolete: np.ndarray,
     id_to_index: np.ndarray,
-    index_to_id: np.ndarray,
     n_remaining: int,
     u_max: np.float32,
-    # ) -> tuple[int, int, int, int]:
-) -> tuple[int, int]:
+) -> tuple[np.int64, np.int64]:
     # Initialize working variables.
-    q_min = numba.float32(np.inf)
-    threshold = numba.float32(np.inf)
-    i_min = -1
-    j_min = -1
-    # searched = 0
-    # visited = 0
-    coefficient = numba.float32(n_remaining - 2)
+    q_min = FLOAT32_INF
+    threshold = FLOAT32_INF
+    i_min = INT64_MIN
+    j_min = INT64_MIN
+    coefficient = np.float32(n_remaining - 2)
     m = nodes_sorted.shape[0]
     n = nodes_sorted.shape[1]
     assert m == D_sorted.shape[0]
     assert n == D_sorted.shape[1]
-
-    # First pass, seed q_min and threshold with first in each row. This is suggested
-    # in the original paper, but I'm not sure it actually makes much if any difference
-    # in practice.
-    for i in range(m):
-        if obsolete[i]:
-            continue
-        u_i = U[i]
-        node_j = nodes_sorted[i, 0]
-        assert node_j >= 0
-        if clustered[node_j]:
-            continue
-        node_i = index_to_id[i]
-        if node_i == node_j:
-            continue
-        d = D_sorted[i, 0]
-        j = id_to_index[node_j]
-        u_j = U[j]
-        q = coefficient * d - u_i - u_j
-        if q < q_min:
-            q_min = q
-            threshold = q_min + u_max
-            i_min = i
-            j_min = j
 
     # Search all values up to threshold.
     for i in range(m):
@@ -351,23 +286,18 @@ def _rapid_search(
         # Obtain divergence for node corresponding to this row.
         u_i = U[i]
 
-        # Obtain identifier for node corresponding to the current row.
-        node_i = index_to_id[i]
-
         # Search the row up to threshold.
-        for s in range(1, n):
-            # visited += 1
-
+        for s in range(0, n):
             # Obtain node identifier for the current item.
             node_j = nodes_sorted[i, s]
-
-            # Skip if this node is already clustered or self comparison.
-            if clustered[node_j] or node_i == node_j:
-                continue
 
             # Break at end of nodes.
             if node_j < 0:
                 break
+
+            # Skip if this node is already clustered.
+            if clustered[node_j]:
+                continue
 
             # Access distance.
             d = D_sorted[i, s]
@@ -378,22 +308,20 @@ def _rapid_search(
             # Limit search. Because the row is sorted, if we are already above this
             # threshold then we know there is no need to search remaining nodes in the
             # row.
-            if q_partial > threshold:
+            if q_partial >= threshold:
                 break
 
             # Fully calculate q.
             j = id_to_index[node_j]
             u_j = U[j]
             q = q_partial - u_j
-            # searched += 1
 
             if q < q_min:
                 q_min = q
                 threshold = q_min + u_max
-                i_min = i
-                j_min = j
+                i_min = np.int64(i)
+                j_min = np.int64(j)
 
-    # return i_min, j_min, searched, visited
     return i_min, j_min
 
 
@@ -407,12 +335,12 @@ def _rapid_update(
     id_to_index: np.ndarray,
     clustered: np.ndarray,
     obsolete: np.ndarray,
-    node: int,
-    child_i: int,
-    child_j: int,
-    i_min: int,
-    j_min: int,
-    d_ij: float,
+    parent: np.int64,
+    child_i: np.int64,
+    child_j: np.int64,
+    i_min: np.int64,
+    j_min: np.int64,
+    d_ij: np.float32,
 ) -> np.float32:
     # Update data structures. Here we obsolete the row corresponding to the node at
     # j_min, and we reuse the row at i_min for the new node.
@@ -420,10 +348,10 @@ def _rapid_update(
     clustered[child_j] = True
 
     # Assign the new node to row at i_min.
-    index_to_id[i_min] = node
-    id_to_index[node] = i_min
+    index_to_id[i_min] = parent
+    id_to_index[parent] = i_min
 
-    # Obsolete the data corresponding to the node at j_min.
+    # Obsolete the row of data corresponding to the node at j_min.
     obsolete[j_min] = True
 
     # Initialize divergence for the new node.
@@ -457,8 +385,8 @@ def _rapid_update(
         u_new += d_k_new
 
         # Distance from k to the obsolete node.
-        D[j_min, k] = np.inf
-        D[k, j_min] = np.inf
+        # D[j_min, k] = FLOAT32_INF  # not needed as this row is obsolete and never read
+        D[k, j_min] = FLOAT32_INF
 
     # Store divergence for the new node.
     U[i_min] = u_new
@@ -479,10 +407,9 @@ def _rapid_update(
 
     # Now update sorted nodes and distances.
     p = nodes_sorted_new.shape[0]
-    assert p == distances_new.shape[0]
     nodes_sorted[i_min, :p] = nodes_sorted_new
-    nodes_sorted[i_min, p:] = -1
+    nodes_sorted[i_min, p:] = INT64_MIN
     D_sorted[i_min, :p] = distances_sorted_new
-    D_sorted[i_min, p:] = np.inf
+    D_sorted[i_min, p:] = FLOAT32_INF
 
     return u_max
