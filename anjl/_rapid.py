@@ -11,8 +11,9 @@ def _setup_distance(D):
     # avoid double-comparison between leaf nodes.
     D_sorted = D.copy()
     for i in range(D_sorted.shape[0]):
+        D[i, i] = np.inf  # avoid self comparisons
         for j in range(i, D_sorted.shape[1]):
-            D_sorted[i, j] = np.inf
+            D_sorted[i, j] = np.inf  # avoid self and duplicate comparisons
     return D_sorted
 
 
@@ -352,7 +353,7 @@ def _rapid_search(
         u_i = U[i]
 
         # Obtain identifier for node corresponding to the current row.
-        node_i = index_to_id[i]
+        # node_i = index_to_id[i]
 
         # Search the row up to threshold.
         for s in range(1, n):
@@ -361,8 +362,8 @@ def _rapid_search(
             # Obtain node identifier for the current item.
             node_j = nodes_sorted[i, s]
 
-            # Skip if this node is already clustered or self comparison.
-            if clustered[node_j] or node_i == node_j:
+            # Skip if this node is already clustered.
+            if clustered[node_j]:
                 continue
 
             # Break at end of nodes.
