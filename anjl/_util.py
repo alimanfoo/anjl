@@ -1,7 +1,8 @@
 import numpy as np
+from numpy.typing import NDArray
 
 
-def to_string(Z: np.ndarray) -> str:
+def to_string(Z: NDArray[np.float32]) -> str:
     """TODO"""
     # Total number of internal nodes.
     n_internal = Z.shape[0]
@@ -40,7 +41,7 @@ def to_string(Z: np.ndarray) -> str:
     return text.strip()
 
 
-def map_internal_to_leaves(Z: np.ndarray) -> list[list[int]]:
+def map_internal_to_leaves(Z: NDArray[np.float32]) -> list[list[int]]:
     """TODO"""
 
     # For each internal node, build a list of all the descendant leaf ids.

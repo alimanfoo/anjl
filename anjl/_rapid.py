@@ -1,6 +1,7 @@
 from typing import Callable
 from collections.abc import Mapping
 import numpy as np
+from numpy.typing import NDArray
 import numba
 
 
@@ -9,27 +10,28 @@ FLOAT32_INF = np.float32(np.inf)
 
 
 def rapid_nj(
-    D: np.ndarray,
+    D: NDArray,
     disallow_negative_distances: bool = True,
     progress: Callable | None = None,
     progress_options: Mapping = {},
-    gc=100,
-) -> np.ndarray:
+    gc: int | None = 100,
+) -> NDArray[np.float32]:
     """TODO"""
 
     # Make a copy of distance matrix D because we will overwrite it during the
     # algorithm.
-    D = np.array(D, copy=True, order="C", dtype=np.float32)
+    D_copy: NDArray[np.float32] = np.array(D, copy=True, order="C", dtype=np.float32)
+    del D
 
     # Initialize the "divergence" array, containing sum of distances to other nodes.
-    U = np.sum(D, axis=1, dtype=np.float32)
+    U: NDArray[np.float32] = np.sum(D_copy, axis=1, dtype=np.float32)
     u_max = U.max()
 
     # Set up a sorted version of the distance array.
-    D_sorted, nodes_sorted = _rapid_setup_distance(D)
+    D_sorted, nodes_sorted = _rapid_setup_distance(D_copy)
 
     # Number of original observations.
-    n_original = D.shape[0]
+    n_original = D_copy.shape[0]
 
     # Expected number of new (internal) nodes that will be created.
     n_internal = n_original - 1
@@ -38,10 +40,12 @@ def rapid_nj(
     n_nodes = n_original + n_internal
 
     # Map row indices to node IDs.
-    index_to_id = np.arange(n_original)
+    index_to_id: NDArray[np.int64] = np.arange(n_original, dtype=np.int64)
 
     # Map node IDs to row indices.
-    id_to_index = np.full(shape=n_nodes, fill_value=INT64_MIN)
+    id_to_index: NDArray[np.int64] = np.full(
+        shape=n_nodes, dtype=np.int64, fill_value=INT64_MIN
+    )
     id_to_index[:n_original] = np.arange(n_original)
 
     # Initialise output. This is similar to the output that scipy hierarchical
@@ -52,14 +56,14 @@ def rapid_nj(
     # - distance to left child node
     # - distance to right child node
     # - total number of leaves
-    Z = np.zeros(shape=(n_internal, 5), dtype=np.float32)
+    Z: NDArray[np.float32] = np.zeros(shape=(n_internal, 5), dtype=np.float32)
 
     # Keep track of which nodes have been clustered and are now "obsolete". N.B., this
     # is different from canonical implementation because we index here by node ID.
-    clustered = np.zeros(shape=n_nodes - 1, dtype=bool)
+    clustered: NDArray[np.bool] = np.zeros(shape=n_nodes - 1, dtype=bool)
 
     # Convenience to also keep track of which rows are no longer in use.
-    obsolete = np.zeros(shape=n_original, dtype=bool)
+    obsolete: NDArray[np.bool] = np.zeros(shape=n_original, dtype=bool)
 
     # Support wrapping the iterator in a progress bar like tqdm.
     iterator = range(n_internal)
@@ -84,7 +88,7 @@ def rapid_nj(
         # Perform one iteration of the neighbour-joining algorithm.
         u_max = _rapid_iteration(
             iteration=iteration,
-            D=D,
+            D=D_copy,
             D_sorted=D_sorted,
             U=U,
             nodes_sorted=nodes_sorted,
@@ -102,7 +106,7 @@ def rapid_nj(
 
 
 @numba.njit
-def _rapid_setup_distance(D):
+def _rapid_setup_distance(D: NDArray[np.float32]):
     # Set the diagonal and upper triangle to inf so we can skip self-comparisons and
     # avoid double-comparison between leaf nodes.
     D_sorted = np.full(shape=D.shape, dtype=np.float32, fill_value=FLOAT32_INF)
@@ -119,12 +123,12 @@ def _rapid_setup_distance(D):
 
 @numba.njit
 def _rapid_gc(
-    D_sorted: np.ndarray,
-    nodes_sorted: np.ndarray,
-    clustered: np.ndarray,
-    obsolete: np.ndarray,
+    D_sorted: NDArray[np.float32],
+    nodes_sorted: NDArray[np.int64],
+    clustered: NDArray[np.bool],
+    obsolete: NDArray[np.bool],
     n_remaining: int,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[NDArray[np.int64], NDArray[np.float32]]:
     for i in range(nodes_sorted.shape[0]):
         if obsolete[i]:
             continue
@@ -146,15 +150,15 @@ def _rapid_gc(
 @numba.njit
 def _rapid_iteration(
     iteration: int,
-    D: np.ndarray,
-    D_sorted: np.ndarray,
-    U: np.ndarray,
-    nodes_sorted: np.ndarray,
-    index_to_id: np.ndarray,
-    id_to_index: np.ndarray,
-    clustered: np.ndarray,
-    obsolete: np.ndarray,
-    Z: np.ndarray,
+    D: NDArray[np.float32],
+    D_sorted: NDArray[np.float32],
+    U: NDArray[np.float32],
+    nodes_sorted: NDArray[np.int64],
+    index_to_id: NDArray[np.int64],
+    id_to_index: NDArray[np.int64],
+    clustered: NDArray[np.bool],
+    obsolete: NDArray[np.bool],
+    Z: NDArray[np.float32],
     n_original: int,
     disallow_negative_distances: bool,
     u_max: np.float32,
@@ -257,12 +261,12 @@ def _rapid_iteration(
 
 @numba.njit
 def _rapid_search(
-    D_sorted: np.ndarray,
-    U: np.ndarray,
-    nodes_sorted: np.ndarray,
-    clustered: np.ndarray,
-    obsolete: np.ndarray,
-    id_to_index: np.ndarray,
+    D_sorted: NDArray[np.float32],
+    U: NDArray[np.float32],
+    nodes_sorted: NDArray[np.int64],
+    clustered: NDArray[np.bool],
+    obsolete: NDArray[np.bool],
+    id_to_index: NDArray[np.int64],
     n_remaining: int,
     u_max: np.float32,
 ) -> tuple[np.int64, np.int64]:
@@ -327,14 +331,14 @@ def _rapid_search(
 
 @numba.njit
 def _rapid_update(
-    D: np.ndarray,
-    D_sorted: np.ndarray,
-    U: np.ndarray,
-    nodes_sorted: np.ndarray,
-    index_to_id: np.ndarray,
-    id_to_index: np.ndarray,
-    clustered: np.ndarray,
-    obsolete: np.ndarray,
+    D: NDArray[np.float32],
+    D_sorted: NDArray[np.float32],
+    U: NDArray[np.float32],
+    nodes_sorted: NDArray[np.int64],
+    index_to_id: NDArray[np.int64],
+    id_to_index: NDArray[np.int64],
+    clustered: NDArray[np.bool],
+    obsolete: NDArray[np.bool],
     parent: np.int64,
     child_i: np.int64,
     child_j: np.int64,
