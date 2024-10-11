@@ -1,42 +1,54 @@
 import math
 from itertools import cycle
-from typing import Literal
 import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
 from numpy.typing import NDArray
 import pandas as pd
+from numpydoc_decorator import doc
 from ._layout import layout_equal_angle
+from . import params
 
 
+@doc(
+    summary="""Plot a neighbour-joining tree using the equal angles layout algorithm.""",
+    extended_summary="""
+        This function uses plotly to create an interactive plot. This allows
+        interactions like panning and zooming, hovering over leaf nodes to inspect
+        additional information, and showing or hiding entries from the legend.
+""",
+)
 def plot(
-    Z: NDArray[np.float32],
-    leaf_data: pd.DataFrame | None = None,
-    color: str | None = None,
-    symbol: str | None = None,
-    hover_name: str | None = None,
-    hover_data: list[str] | None = None,
-    center_x: int | float = 0,
-    center_y: int | float = 0,
-    arc_start: int | float = 0,
-    arc_stop: int | float = 2 * math.pi,
-    count_sort: bool = True,
-    distance_sort: bool = False,
-    line_width: int | float = 1,
-    marker_size: int | float = 5,
-    internal_marker_size: int | float = 0,
-    color_discrete_sequence=None,
-    color_discrete_map=None,
-    category_orders=None,
-    leaf_legend: bool = True,
-    edge_legend: bool = False,
-    default_edge_color="black",
-    width: int | float = 700,
-    height: int | float = 600,
-    render_mode: Literal["auto", "svg", "webgl"] = "auto",
-    legend_sizing: Literal["constant", "trace"] = "constant",
-) -> go.Figure:
-    """TODO"""
+    Z: params.Z,
+    leaf_data: params.leaf_data = None,
+    color: params.color = None,
+    symbol: params.symbol = None,
+    hover_name: params.hover_name = None,
+    hover_data: params.hover_data = None,
+    center_x: params.center_x = 0,
+    center_y: params.center_y = 0,
+    arc_start: params.arc_start = 0,
+    arc_stop: params.arc_stop = 2 * math.pi,
+    count_sort: params.count_sort = True,
+    distance_sort: params.distance_sort = False,
+    line_width: params.line_width = 1,
+    marker_size: params.marker_size = 5,
+    internal_marker_size: params.internal_marker_size = 0,
+    color_discrete_sequence: params.color_discrete_sequence = None,
+    color_discrete_map: params.color_discrete_map = None,
+    category_orders: params.category_order = None,
+    leaf_legend: params.leaf_legend = True,
+    edge_legend: params.edge_legend = False,
+    default_line_color: params.default_line_color = "black",
+    width: params.fig_width = 700,
+    height: params.fig_height = 600,
+    render_mode: params.render_mode = "auto",
+    legend_sizing: params.legend_sizing = "constant",
+) -> params.plotly_figure:
+    # Parameter validation.
+    if distance_sort and count_sort:
+        raise ValueError("distance_sort and count_sort cannot both be True")
+
     # Layout the nodes in the tree according to the equal angles algorithm.
     df_internal_nodes, df_leaf_nodes, df_edges = layout_equal_angle(
         Z=Z,
@@ -70,7 +82,7 @@ def plot(
             category_orders=category_orders,
             color_discrete_sequence=color_discrete_sequence,
             color_discrete_map=color_discrete_map,
-            default_edge_color=default_edge_color,
+            default_line_color=default_line_color,
         )
     )
 
@@ -165,14 +177,15 @@ def plot(
 
 
 def normalise_color_params(
-    leaf_data: pd.DataFrame | None,
-    color: str | None,
-    category_orders,
-    color_discrete_sequence,
-    color_discrete_map,
-    default_edge_color,
-):
-    """TODO"""
+    leaf_data: params.leaf_data,
+    color: params.color,
+    category_orders: params.category_order,
+    color_discrete_sequence: params.color_discrete_sequence,
+    color_discrete_map: params.color_discrete_map,
+    default_line_color: params.default_line_color,
+) -> tuple[
+    params.category_order, params.color_discrete_sequence, params.color_discrete_map
+]:
     if leaf_data is not None and color is not None:
         # We need all traces to use the same color configuration, and so we population
         # and normalise the category_orders, color_discrete_sequence and
@@ -196,28 +209,28 @@ def normalise_color_params(
                 else:
                     color_discrete_sequence = px.colors.qualitative.Alphabet
             # Map values to colors.
-            color_discrete_map = {
+            color_discrete_map_prepped = {
                 v: c
                 for v, c in zip(unique_color_values, cycle(color_discrete_sequence))
             }
+        else:
+            color_discrete_map_prepped = dict(**color_discrete_map)
 
         # Set a default color for edges where descendant leaves have
         # different colors.
-        color_discrete_map[""] = default_edge_color
+        color_discrete_map_prepped[""] = default_line_color
 
-    return category_orders, color_discrete_sequence, color_discrete_map
+    return category_orders, color_discrete_sequence, color_discrete_map_prepped
 
 
 def decorate_tree(
-    Z: NDArray[np.float32],
+    Z: params.Z,
+    leaf_data: params.leaf_data,
+    color: params.color,
     df_internal_nodes: pd.DataFrame,
     df_leaf_nodes: pd.DataFrame,
     df_edges: pd.DataFrame,
-    leaf_data: pd.DataFrame | None,
-    color: str | None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """TODO"""
-
     if leaf_data is not None:
         # Join the leaf data with the leaf nodes, so leaf data is
         # available for color, symbol, hover_name and hover_data
@@ -241,9 +254,7 @@ def decorate_tree(
     return df_internal_nodes, df_leaf_nodes, df_edges
 
 
-def paint_internal(Z: NDArray[np.float32], leaf_color_values: np.ndarray) -> np.ndarray:
-    """TODO"""
-
+def paint_internal(Z: params.Z, leaf_color_values: NDArray) -> NDArray:
     # For each internal node, create a set to store the colors
     # associated with all leaf nodes.
     internal_color_sets: list[set] = []

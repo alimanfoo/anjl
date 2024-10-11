@@ -1,6 +1,7 @@
 import numpy as np
 from numpy.typing import NDArray
 from numba import njit, int64, float32, bool_
+from numpydoc_decorator import doc
 from . import params
 
 
@@ -12,15 +13,30 @@ ERROR_MODEL = "numpy"
 BOUNDSCHECK = False
 
 
+@doc(
+    summary="""Perform neighbour-joining using an algorithm based on Simonsen et al. [1]_""",
+    extended_summary="""
+        This implementation builds and maintains a sorted copy of the distance matrix
+        and uses heuristics to avoid searching pairs that cannot possibly be neighbours
+        in each iteration. In the worst case it has complexity O(n^3) like the canonical
+        algorithm but in practice it usually scales closer to O(n^2).
+    """,
+    notes="""
+        The ordering of the internal nodes may be different between the canonical and
+        the rapid algorithms, because these algorithms search the distance matrix in a
+        different order. However, the resulting trees will be topologically equivalent.
+    """,
+    references={
+        "1": "https://pure.au.dk/ws/files/19821675/rapidNJ.pdf",
+    },
+)
 def rapid_nj(
     D: params.D,
     disallow_negative_distances: params.disallow_negative_distances = True,
     progress: params.progress = None,
     progress_options: params.progress_options = {},
     gc: params.gc = 100,
-) -> NDArray[np.float32]:
-    """TODO"""
-
+) -> params.Z:
     # Make a copy of distance matrix D because we will overwrite it during the
     # algorithm.
     D_copy: NDArray[np.float32] = np.array(D, copy=True, order="C", dtype=np.float32)

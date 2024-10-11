@@ -1,20 +1,17 @@
 import math
-import numpy as np
-from numpy.typing import NDArray
 import pandas as pd
+from . import params
 
 
 def layout_equal_angle(
-    Z: NDArray[np.float32],
-    center_x: int | float = 0,
-    center_y: int | float = 0,
-    arc_start: int | float = 0,
-    arc_stop: int | float = 2 * math.pi,
-    distance_sort: bool = False,
-    count_sort: bool = False,
+    Z: params.Z,
+    center_x: params.center_x = 0,
+    center_y: params.center_y = 0,
+    arc_start: params.arc_start = 0,
+    arc_stop: params.arc_stop = 2 * math.pi,
+    distance_sort: params.distance_sort = False,
+    count_sort: params.count_sort = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """TODO"""
-
     # Set up outputs.
     internal_nodes: list[tuple] = []
     leaf_nodes: list[tuple] = []
@@ -74,8 +71,8 @@ def layout_equal_angle(
 
 def _layout_equal_angle(
     *,
+    Z: params.Z,
     node: int,
-    Z: NDArray[np.float32],
     leaf_nodes: list[tuple],
     internal_nodes: list[tuple],
     edges: list[tuple],

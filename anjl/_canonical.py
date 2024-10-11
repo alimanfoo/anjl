@@ -2,6 +2,7 @@ import numpy as np
 from numpy.typing import NDArray
 from numba import njit, int64, float32, bool_, void
 from . import params
+from numpydoc_decorator import doc
 
 
 INT64_MIN = np.int64(np.iinfo(np.int64).min)
@@ -12,6 +13,15 @@ ERROR_MODEL = "numpy"
 BOUNDSCHECK = False
 
 
+@doc(
+    summary="""Perform neighbour-joining using the canonical algorithm.""",
+    extended_summary="""
+        This implementation performs a full scan of the distance matrix in each
+        iteration of the algorithm to find the pair of nearest neighbours. It is
+        therefore slower and scales with the cube of the number of original observations
+        in the distance matrix, i.e., O(n^3).
+    """,
+)
 def canonical_nj(
     D: params.D,
     disallow_negative_distances: params.disallow_negative_distances = True,
