@@ -7,6 +7,10 @@ from numba import njit, int64, float32, bool_
 
 INT64_MIN = np.int64(np.iinfo(np.int64).min)
 FLOAT32_INF = np.float32(np.inf)
+NOGIL = True
+FASTMATH = False  # setting True actually seems to slow things down
+ERROR_MODEL = "numpy"
+BOUNDSCHECK = False
 
 
 def rapid_nj(
@@ -107,10 +111,10 @@ def rapid_nj(
 
 @njit(
     (float32[:, :],),
-    nogil=True,
-    fastmath=True,
-    error_model="numpy",
-    boundscheck=False,
+    nogil=NOGIL,
+    fastmath=FASTMATH,
+    error_model=ERROR_MODEL,
+    boundscheck=BOUNDSCHECK,
 )
 def _rapid_setup_distance(D: NDArray[np.float32]):
     # Set the diagonal and upper triangle to inf so we can skip self-comparisons and
@@ -135,10 +139,10 @@ def _rapid_setup_distance(D: NDArray[np.float32]):
         bool_[:],  # obsolete
         int64,  # n_remaining
     ),
-    nogil=True,
-    fastmath=True,
-    error_model="numpy",
-    boundscheck=False,
+    nogil=NOGIL,
+    fastmath=FASTMATH,
+    error_model=ERROR_MODEL,
+    boundscheck=BOUNDSCHECK,
 )
 def _rapid_gc(
     D_sorted: NDArray[np.float32],
@@ -176,10 +180,10 @@ def _rapid_gc(
         int64,  # n_remaining
         float32,  # u_max
     ),
-    nogil=True,
-    fastmath=True,
-    error_model="numpy",
-    boundscheck=False,
+    nogil=NOGIL,
+    fastmath=FASTMATH,
+    error_model=ERROR_MODEL,
+    boundscheck=BOUNDSCHECK,
 )
 def _rapid_search(
     D_sorted: NDArray[np.float32],
@@ -267,10 +271,10 @@ def _rapid_search(
         int64,  # j_min
         float32,  # d_ij
     ),
-    nogil=True,
-    fastmath=True,
-    error_model="numpy",
-    boundscheck=False,
+    nogil=NOGIL,
+    fastmath=FASTMATH,
+    error_model=ERROR_MODEL,
+    boundscheck=BOUNDSCHECK,
 )
 def _rapid_update(
     D: NDArray[np.float32],
@@ -377,10 +381,10 @@ def _rapid_update(
         bool_,  # disallow_negative_distances
         float32,  # u_max
     ),
-    nogil=True,
-    fastmath=True,
-    error_model="numpy",
-    boundscheck=False,
+    nogil=NOGIL,
+    fastmath=FASTMATH,
+    error_model=ERROR_MODEL,
+    boundscheck=BOUNDSCHECK,
 )
 def _rapid_iteration(
     iteration: int,

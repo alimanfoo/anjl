@@ -7,6 +7,10 @@ from numba import njit, int64, float32, bool_, void
 
 INT64_MIN = np.int64(np.iinfo(np.int64).min)
 FLOAT32_INF = np.float32(np.inf)
+NOGIL = True
+FASTMATH = False  # setting True actually seems to slow things down
+ERROR_MODEL = "numpy"
+BOUNDSCHECK = False
 
 
 def canonical_nj(
@@ -76,10 +80,10 @@ def canonical_nj(
         bool_[:],  # obsolete
         int64,  # n_remaining
     ),
-    nogil=True,
-    fastmath=True,
-    error_model="numpy",
-    boundscheck=False,
+    nogil=NOGIL,
+    fastmath=FASTMATH,
+    error_model=ERROR_MODEL,
+    boundscheck=BOUNDSCHECK,
 )
 def _canonical_search(
     D: NDArray[np.float32],
@@ -121,10 +125,10 @@ def _canonical_search(
         int64,  # j_min
         float32,  # d_ij
     ),
-    nogil=True,
-    fastmath=True,
-    error_model="numpy",
-    boundscheck=False,
+    nogil=NOGIL,
+    fastmath=FASTMATH,
+    error_model=ERROR_MODEL,
+    boundscheck=BOUNDSCHECK,
 )
 def _canonical_update(
     D: NDArray[np.float32],
@@ -179,10 +183,10 @@ def _canonical_update(
         int64,  # n_original
         bool_,  # disallow_negative_distances
     ),
-    nogil=True,
-    fastmath=True,
-    error_model="numpy",
-    boundscheck=False,
+    nogil=NOGIL,
+    fastmath=FASTMATH,
+    error_model=ERROR_MODEL,
+    boundscheck=BOUNDSCHECK,
 )
 def _canonical_iteration(
     iteration: int,
