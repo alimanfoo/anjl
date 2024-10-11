@@ -31,7 +31,7 @@ def rapid_nj(
     u_max = U.max()
 
     # Set up a sorted version of the distance array.
-    D_sorted, nodes_sorted = _rapid_setup_distance(D_copy)
+    D_sorted, nodes_sorted = rapid_setup_distance(D_copy)
 
     # Number of original observations.
     n_original = D_copy.shape[0]
@@ -80,7 +80,7 @@ def rapid_nj(
 
         # Garbage collection.
         if gc and iteration > 0 and iteration % gc == 0:
-            nodes_sorted, D_sorted = _rapid_gc(
+            nodes_sorted, D_sorted = rapid_gc(
                 nodes_sorted=nodes_sorted,
                 D_sorted=D_sorted,
                 clustered=clustered,
@@ -89,7 +89,7 @@ def rapid_nj(
             )
 
         # Perform one iteration of the neighbour-joining algorithm.
-        u_max = _rapid_iteration(
+        u_max = rapid_iteration(
             iteration=iteration,
             D=D_copy,
             D_sorted=D_sorted,
@@ -115,7 +115,7 @@ def rapid_nj(
     error_model=ERROR_MODEL,
     boundscheck=BOUNDSCHECK,
 )
-def _rapid_setup_distance(D: NDArray[np.float32]):
+def rapid_setup_distance(D: NDArray[np.float32]):
     # Set the diagonal and upper triangle to inf so we can skip self-comparisons and
     # avoid double-comparison between leaf nodes.
     D_sorted = np.full(shape=D.shape, dtype=float32, fill_value=FLOAT32_INF)
@@ -143,7 +143,7 @@ def _rapid_setup_distance(D: NDArray[np.float32]):
     error_model=ERROR_MODEL,
     boundscheck=BOUNDSCHECK,
 )
-def _rapid_gc(
+def rapid_gc(
     D_sorted: NDArray[np.float32],
     nodes_sorted: NDArray[np.int64],
     clustered: NDArray[np.bool_],
@@ -184,7 +184,7 @@ def _rapid_gc(
     error_model=ERROR_MODEL,
     boundscheck=BOUNDSCHECK,
 )
-def _rapid_search(
+def rapid_search(
     D_sorted: NDArray[np.float32],
     U: NDArray[np.float32],
     nodes_sorted: NDArray[np.int64],
@@ -275,7 +275,7 @@ def _rapid_search(
     error_model=ERROR_MODEL,
     boundscheck=BOUNDSCHECK,
 )
-def _rapid_update(
+def rapid_update(
     D: NDArray[np.float32],
     D_sorted: NDArray[np.float32],
     U: NDArray[np.float32],
@@ -385,7 +385,7 @@ def _rapid_update(
     error_model=ERROR_MODEL,
     boundscheck=BOUNDSCHECK,
 )
-def _rapid_iteration(
+def rapid_iteration(
     iteration: int,
     D: NDArray[np.float32],
     D_sorted: NDArray[np.float32],
@@ -408,7 +408,7 @@ def _rapid_iteration(
 
     if n_remaining > 2:
         # Search for the closest pair of nodes to join.
-        i_min, j_min = _rapid_search(
+        i_min, j_min = rapid_search(
             D_sorted=D_sorted,
             U=U,
             nodes_sorted=nodes_sorted,
@@ -476,7 +476,7 @@ def _rapid_iteration(
 
     if n_remaining > 2:
         # Update data structures.
-        u_max = _rapid_update(
+        u_max = rapid_update(
             D=D,
             D_sorted=D_sorted,
             U=U,

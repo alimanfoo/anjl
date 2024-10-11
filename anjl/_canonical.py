@@ -58,7 +58,7 @@ def canonical_nj(
     # Begin iterating.
     for iteration in iterator:
         # Perform one iteration of the neighbour-joining algorithm.
-        _canonical_iteration(
+        canonical_iteration(
             iteration=iteration,
             D=D_copy,
             U=U,
@@ -84,7 +84,7 @@ def canonical_nj(
     error_model=ERROR_MODEL,
     boundscheck=BOUNDSCHECK,
 )
-def _canonical_search(
+def canonical_search(
     D: NDArray[np.float32],
     U: NDArray[np.float32],
     obsolete: NDArray[np.bool_],
@@ -129,7 +129,7 @@ def _canonical_search(
     error_model=ERROR_MODEL,
     boundscheck=BOUNDSCHECK,
 )
-def _canonical_update(
+def canonical_update(
     D: NDArray[np.float32],
     U: NDArray[np.float32],
     index_to_id: NDArray[np.int64],
@@ -187,7 +187,7 @@ def _canonical_update(
     error_model=ERROR_MODEL,
     boundscheck=BOUNDSCHECK,
 )
-def _canonical_iteration(
+def canonical_iteration(
     iteration: int,
     D: NDArray[np.float32],
     U: NDArray[np.float32],
@@ -205,7 +205,7 @@ def _canonical_iteration(
 
     if n_remaining > 2:
         # Search for the closest pair of nodes to join.
-        i_min, j_min = _canonical_search(
+        i_min, j_min = canonical_search(
             D=D, U=U, obsolete=obsolete, n_remaining=n_remaining
         )
 
@@ -264,7 +264,7 @@ def _canonical_iteration(
 
     if n_remaining > 2:
         # Update data structures.
-        _canonical_update(
+        canonical_update(
             D=D,
             U=U,
             index_to_id=index_to_id,
