@@ -1,10 +1,13 @@
 import numpy as np
 import pandas as pd
+from . import params
 
 
-def example_1():
-    # This is example 1 from Amelia Harrison's blog.
-    # https://www.tenderisthebyte.com/blog/2022/08/31/neighbor-joining-trees/
+def example_1() -> tuple[params.D, params.leaf_data]:
+    """This is example 1 from Amelia Harrison's blog.
+
+    https://www.tenderisthebyte.com/blog/2022/08/31/neighbor-joining-trees/
+    """
     dist = np.array(
         [  # A B C D
             [0, 4, 5, 10],
@@ -18,9 +21,11 @@ def example_1():
     return dist, leaf_data
 
 
-def example_2():
-    # This is example 2 from Amelia Harrison's blog.
-    # https://www.tenderisthebyte.com/blog/2022/08/31/neighbor-joining-trees/
+def example_2() -> tuple[params.D, params.leaf_data]:
+    """This is example 2 from Amelia Harrison's blog.
+
+    https://www.tenderisthebyte.com/blog/2022/08/31/neighbor-joining-trees/
+    """
     dist = np.array(
         [  # A B C D
             [0, 2, 2, 2],
@@ -34,9 +39,11 @@ def example_2():
     return dist, leaf_data
 
 
-def example_3():
-    # This is the extra from Amelia Harrison's blog.
-    # https://www.tenderisthebyte.com/blog/2022/08/31/neighbor-joining-trees/
+def example_3() -> tuple[params.D, params.leaf_data]:
+    """This is the extra example from Amelia Harrison's blog.
+
+    https://www.tenderisthebyte.com/blog/2022/08/31/neighbor-joining-trees/
+    """
     dist = np.array(
         [  # A B C D E
             [0, 13, 14, 11, 20],
@@ -51,9 +58,11 @@ def example_3():
     return dist, leaf_data
 
 
-def wikipedia_example():
-    # This example comes from the wikipedia page on neighbour-joining.
-    # https://en.wikipedia.org/wiki/Neighbor_joining#Example
+def wikipedia_example() -> tuple[params.D, params.leaf_data]:
+    """This example comes from the wikipedia page on neighbour-joining.
+
+    https://en.wikipedia.org/wiki/Neighbor_joining#Example
+    """
 
     dist = np.array(
         [  # a b c d e
@@ -69,7 +78,9 @@ def wikipedia_example():
     return dist, leaf_data
 
 
-def mosquitoes():
+def mosquitoes() -> tuple[params.D, params.leaf_data]:
+    """This dataset contains genetic distances between mosquitoes sequenced by the
+    Anopheles gambiae 1000 Genomes Project."""
     import importlib.resources
     from . import resources
 

@@ -1,23 +1,42 @@
-from typing import Callable
-from collections.abc import Mapping
 import numpy as np
 from numpy.typing import NDArray
-import numba
+from numba import njit, int64, float32, bool_
+from numpydoc_decorator import doc
+from . import params
 
 
 INT64_MIN = np.int64(np.iinfo(np.int64).min)
 FLOAT32_INF = np.float32(np.inf)
+NOGIL = True
+FASTMATH = False  # setting True actually seems to slow things down
+ERROR_MODEL = "numpy"
+BOUNDSCHECK = False
 
 
+@doc(
+    summary="""Perform neighbour-joining using an algorithm based on Simonsen et al. [1]_""",
+    extended_summary="""
+        This implementation builds and maintains a sorted copy of the distance matrix
+        and uses heuristics to avoid searching pairs that cannot possibly be neighbours
+        in each iteration. In the worst case it has complexity O(n^3) like the canonical
+        algorithm but in practice it usually scales closer to O(n^2).
+    """,
+    notes="""
+        The ordering of the internal nodes may be different between the canonical and
+        the rapid algorithms, because these algorithms search the distance matrix in a
+        different order. However, the resulting trees will be topologically equivalent.
+    """,
+    references={
+        "1": "https://pure.au.dk/ws/files/19821675/rapidNJ.pdf",
+    },
+)
 def rapid_nj(
-    D: NDArray,
-    disallow_negative_distances: bool = True,
-    progress: Callable | None = None,
-    progress_options: Mapping = {},
-    gc: int | None = 100,
-) -> NDArray[np.float32]:
-    """TODO"""
-
+    D: params.D,
+    disallow_negative_distances: params.disallow_negative_distances = True,
+    progress: params.progress = None,
+    progress_options: params.progress_options = {},
+    gc: params.gc = 100,
+) -> params.Z:
     # Make a copy of distance matrix D because we will overwrite it during the
     # algorithm.
     D_copy: NDArray[np.float32] = np.array(D, copy=True, order="C", dtype=np.float32)
@@ -28,7 +47,7 @@ def rapid_nj(
     u_max = U.max()
 
     # Set up a sorted version of the distance array.
-    D_sorted, nodes_sorted = _rapid_setup_distance(D_copy)
+    D_sorted, nodes_sorted = rapid_setup_distance(D_copy)
 
     # Number of original observations.
     n_original = D_copy.shape[0]
@@ -77,7 +96,7 @@ def rapid_nj(
 
         # Garbage collection.
         if gc and iteration > 0 and iteration % gc == 0:
-            nodes_sorted, D_sorted = _rapid_gc(
+            nodes_sorted, D_sorted = rapid_gc(
                 nodes_sorted=nodes_sorted,
                 D_sorted=D_sorted,
                 clustered=clustered,
@@ -86,7 +105,7 @@ def rapid_nj(
             )
 
         # Perform one iteration of the neighbour-joining algorithm.
-        u_max = _rapid_iteration(
+        u_max = rapid_iteration(
             iteration=iteration,
             D=D_copy,
             D_sorted=D_sorted,
@@ -105,12 +124,18 @@ def rapid_nj(
     return Z
 
 
-@numba.njit
-def _rapid_setup_distance(D: NDArray[np.float32]):
+@njit(
+    (float32[:, :],),
+    nogil=NOGIL,
+    fastmath=FASTMATH,
+    error_model=ERROR_MODEL,
+    boundscheck=BOUNDSCHECK,
+)
+def rapid_setup_distance(D: NDArray[np.float32]):
     # Set the diagonal and upper triangle to inf so we can skip self-comparisons and
     # avoid double-comparison between leaf nodes.
-    D_sorted = np.full(shape=D.shape, dtype=np.float32, fill_value=FLOAT32_INF)
-    nodes_sorted = np.full(shape=D.shape, dtype=np.int64, fill_value=INT64_MIN)
+    D_sorted = np.full(shape=D.shape, dtype=float32, fill_value=FLOAT32_INF)
+    nodes_sorted = np.full(shape=D.shape, dtype=int64, fill_value=INT64_MIN)
     for i in range(D.shape[0]):
         D[i, i] = FLOAT32_INF  # avoid self comparisons in all iterations
         d = D[i, :i]
@@ -121,8 +146,20 @@ def _rapid_setup_distance(D: NDArray[np.float32]):
     return D_sorted, nodes_sorted
 
 
-@numba.njit
-def _rapid_gc(
+@njit(
+    (
+        float32[:, :],  # D_sorted
+        int64[:, :],  # nodes_sorted
+        bool_[:],  # clustered
+        bool_[:],  # obsolete
+        int64,  # n_remaining
+    ),
+    nogil=NOGIL,
+    fastmath=FASTMATH,
+    error_model=ERROR_MODEL,
+    boundscheck=BOUNDSCHECK,
+)
+def rapid_gc(
     D_sorted: NDArray[np.float32],
     nodes_sorted: NDArray[np.int64],
     clustered: NDArray[np.bool_],
@@ -147,120 +184,23 @@ def _rapid_gc(
     return nodes_sorted, D_sorted
 
 
-@numba.njit
-def _rapid_iteration(
-    iteration: int,
-    D: NDArray[np.float32],
-    D_sorted: NDArray[np.float32],
-    U: NDArray[np.float32],
-    nodes_sorted: NDArray[np.int64],
-    index_to_id: NDArray[np.int64],
-    id_to_index: NDArray[np.int64],
-    clustered: NDArray[np.bool_],
-    obsolete: NDArray[np.bool_],
-    Z: NDArray[np.float32],
-    n_original: int,
-    disallow_negative_distances: bool,
-    u_max: np.float32,
-) -> np.float32:
-    # This will be the identifier for the new node to be created in this iteration.
-    parent = iteration + n_original
-
-    # Number of nodes remaining in this iteration.
-    n_remaining = n_original - iteration
-
-    if n_remaining > 2:
-        # Search for the closest pair of nodes to join.
-        i_min, j_min = _rapid_search(
-            D_sorted=D_sorted,
-            U=U,
-            nodes_sorted=nodes_sorted,
-            clustered=clustered,
-            obsolete=obsolete,
-            id_to_index=id_to_index,
-            n_remaining=n_remaining,
-            u_max=u_max,
-        )
-
-        # Get IDs for the nodes to be joined.
-        child_i = index_to_id[i_min]
-        child_j = index_to_id[j_min]
-
-        # Calculate distances to the new internal node.
-        d_ij = D[i_min, j_min]
-        d_i = 0.5 * (d_ij + (1 / (n_remaining - 2)) * (U[i_min] - U[j_min]))
-        d_j = 0.5 * (d_ij + (1 / (n_remaining - 2)) * (U[j_min] - U[i_min]))
-
-    else:
-        # Termination. Join the two remaining nodes, placing the final node at the
-        # midpoint.
-        child_i, child_j = np.nonzero(~clustered)[0]
-        i_min = id_to_index[child_i]
-        j_min = id_to_index[child_j]
-        d_ij = D[i_min, j_min]
-        d_i = d_ij / 2
-        d_j = d_ij / 2
-
-    # Sanity checks.
-    assert i_min >= 0
-    assert j_min >= 0
-    assert i_min != j_min
-    assert child_i >= 0
-    assert child_j >= 0
-    assert child_i != child_j
-
-    # Handle possibility of negative distances.
-    if disallow_negative_distances:
-        d_i = max(0, d_i)
-        d_j = max(0, d_j)
-
-    # Stabilise ordering for easier comparisons.
-    if child_i > child_j:
-        child_i, child_j = child_j, child_i
-        i_min, j_min = j_min, i_min
-        d_i, d_j = d_j, d_i
-
-    # Get number of leaves.
-    if child_i < n_original:
-        leaves_i = 1
-    else:
-        leaves_i = Z[child_i - n_original, 4]
-    if child_j < n_original:
-        leaves_j = 1
-    else:
-        leaves_j = Z[child_j - n_original, 4]
-
-    # Store new node data.
-    Z[iteration, 0] = child_i
-    Z[iteration, 1] = child_j
-    Z[iteration, 2] = d_i
-    Z[iteration, 3] = d_j
-    Z[iteration, 4] = leaves_i + leaves_j
-
-    if n_remaining > 2:
-        # Update data structures.
-        u_max = _rapid_update(
-            D=D,
-            D_sorted=D_sorted,
-            U=U,
-            nodes_sorted=nodes_sorted,
-            index_to_id=index_to_id,
-            id_to_index=id_to_index,
-            clustered=clustered,
-            obsolete=obsolete,
-            parent=parent,
-            child_i=child_i,
-            child_j=child_j,
-            i_min=i_min,
-            j_min=j_min,
-            d_ij=d_ij,
-        )
-
-    return u_max
-
-
-@numba.njit
-def _rapid_search(
+@njit(
+    (
+        float32[:, :],  # D_sorted
+        float32[:],  # U
+        int64[:, :],  # nodes_sorted
+        bool_[:],  # clustered
+        bool_[:],  # obsolete
+        int64[:],  # id_to_index
+        int64,  # n_remaining
+        float32,  # u_max
+    ),
+    nogil=NOGIL,
+    fastmath=FASTMATH,
+    error_model=ERROR_MODEL,
+    boundscheck=BOUNDSCHECK,
+)
+def rapid_search(
     D_sorted: NDArray[np.float32],
     U: NDArray[np.float32],
     nodes_sorted: NDArray[np.int64],
@@ -329,8 +269,29 @@ def _rapid_search(
     return i_min, j_min
 
 
-@numba.njit
-def _rapid_update(
+@njit(
+    (
+        float32[:, :],  # D
+        float32[:, :],  # D_sorted
+        float32[:],  # U
+        int64[:, :],  # nodes_sorted
+        int64[:],  # index_to_id
+        int64[:],  # id_to_index
+        bool_[:],  # clustered
+        bool_[:],  # obsolete
+        int64,  # parent
+        int64,  # child_i
+        int64,  # child_j
+        int64,  # i_min
+        int64,  # j_min
+        float32,  # d_ij
+    ),
+    nogil=NOGIL,
+    fastmath=FASTMATH,
+    error_model=ERROR_MODEL,
+    boundscheck=BOUNDSCHECK,
+)
+def rapid_update(
     D: NDArray[np.float32],
     D_sorted: NDArray[np.float32],
     U: NDArray[np.float32],
@@ -415,5 +376,137 @@ def _rapid_update(
     nodes_sorted[i_min, p:] = INT64_MIN
     D_sorted[i_min, :p] = distances_sorted_new
     D_sorted[i_min, p:] = FLOAT32_INF
+
+    return u_max
+
+
+@njit(
+    (
+        int64,  # iteration
+        float32[:, :],  # D
+        float32[:, :],  # D_sorted
+        float32[:],  # U
+        int64[:, :],  # nodes_sorted
+        int64[:],  # index_to_id
+        int64[:],  # id_to_index
+        bool_[:],  # clustered
+        bool_[:],  # obsolete
+        float32[:, :],  # Z
+        int64,  # n_original
+        bool_,  # disallow_negative_distances
+        float32,  # u_max
+    ),
+    nogil=NOGIL,
+    fastmath=FASTMATH,
+    error_model=ERROR_MODEL,
+    boundscheck=BOUNDSCHECK,
+)
+def rapid_iteration(
+    iteration: int,
+    D: NDArray[np.float32],
+    D_sorted: NDArray[np.float32],
+    U: NDArray[np.float32],
+    nodes_sorted: NDArray[np.int64],
+    index_to_id: NDArray[np.int64],
+    id_to_index: NDArray[np.int64],
+    clustered: NDArray[np.bool_],
+    obsolete: NDArray[np.bool_],
+    Z: NDArray[np.float32],
+    n_original: int,
+    disallow_negative_distances: bool,
+    u_max: np.float32,
+) -> np.float32:
+    # This will be the identifier for the new node to be created in this iteration.
+    parent = iteration + n_original
+
+    # Number of nodes remaining in this iteration.
+    n_remaining = n_original - iteration
+
+    if n_remaining > 2:
+        # Search for the closest pair of nodes to join.
+        i_min, j_min = rapid_search(
+            D_sorted=D_sorted,
+            U=U,
+            nodes_sorted=nodes_sorted,
+            clustered=clustered,
+            obsolete=obsolete,
+            id_to_index=id_to_index,
+            n_remaining=n_remaining,
+            u_max=u_max,
+        )
+
+        # Get IDs for the nodes to be joined.
+        child_i = index_to_id[i_min]
+        child_j = index_to_id[j_min]
+
+        # Calculate distances to the new internal node.
+        d_ij = D[i_min, j_min]
+        d_i = 0.5 * (d_ij + (1 / (n_remaining - 2)) * (U[i_min] - U[j_min]))
+        d_j = 0.5 * (d_ij + (1 / (n_remaining - 2)) * (U[j_min] - U[i_min]))
+
+    else:
+        # Termination. Join the two remaining nodes, placing the final node at the
+        # midpoint.
+        child_i, child_j = np.nonzero(~clustered)[0]
+        i_min = id_to_index[child_i]
+        j_min = id_to_index[child_j]
+        d_ij = D[i_min, j_min]
+        d_i = d_ij / 2
+        d_j = d_ij / 2
+
+    # Sanity checks.
+    assert i_min >= 0
+    assert j_min >= 0
+    assert i_min != j_min
+    assert child_i >= 0
+    assert child_j >= 0
+    assert child_i != child_j
+
+    # Handle possibility of negative distances.
+    if disallow_negative_distances:
+        d_i = max(0, d_i)
+        d_j = max(0, d_j)
+
+    # Stabilise ordering for easier comparisons.
+    if child_i > child_j:
+        child_i, child_j = child_j, child_i
+        i_min, j_min = j_min, i_min
+        d_i, d_j = d_j, d_i
+
+    # Get number of leaves.
+    if child_i < n_original:
+        leaves_i = 1
+    else:
+        leaves_i = Z[child_i - n_original, 4]
+    if child_j < n_original:
+        leaves_j = 1
+    else:
+        leaves_j = Z[child_j - n_original, 4]
+
+    # Store new node data.
+    Z[iteration, 0] = child_i
+    Z[iteration, 1] = child_j
+    Z[iteration, 2] = d_i
+    Z[iteration, 3] = d_j
+    Z[iteration, 4] = leaves_i + leaves_j
+
+    if n_remaining > 2:
+        # Update data structures.
+        u_max = rapid_update(
+            D=D,
+            D_sorted=D_sorted,
+            U=U,
+            nodes_sorted=nodes_sorted,
+            index_to_id=index_to_id,
+            id_to_index=id_to_index,
+            clustered=clustered,
+            obsolete=obsolete,
+            parent=parent,
+            child_i=child_i,
+            child_j=child_j,
+            i_min=i_min,
+            j_min=j_min,
+            d_ij=d_ij,
+        )
 
     return u_max
