@@ -36,7 +36,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/tzdata-2024b-hc8b5060_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/xz-5.2.6-h166bdaf_0.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/linux-64/zlib-1.3.1-hb9d3cd8_2.conda
-      - pypi: https://files.pythonhosted.org/packages/d0/d4/934e9c692a69dab0e814d6097f044ac83a9e7f9fd2e95ed2f74ceebae684/anjl-0.9.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/b6/bc/7a65381c66eb07af25a582457dde7dfa31224ddc1811b00c979dd03e5c1d/anjl-1.0.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/78/b6/6307fbef88d9b5ee7421e68d78a9f162e0da4900bc5f5793f6d3d0e34fb8/annotated_types-0.7.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/9e/ef/7a4f225581a0d7886ea28359179cb861d7fbcdefad29663fc1167b86f69f/anyio-4.6.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/a4/6a/e8a041599e78b6b3752da48000b14c8d1e8a04ded09c88c714ba047f34f5/argon2_cffi-23.1.0-py3-none-any.whl
@@ -92,6 +92,7 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/f9/33/bd5b9137445ea4b680023eb0469b2bb969d61303dedb2aac6560ff3d14a1/notebook_shim-0.2.4-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/8b/41/ac11cf33524def12aa5bd698226ae196a1185831c05ed29dc0c56eaa308b/numba-0.60.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/39/68/e9f1126d757653496dbc096cb429014347a36b228f5a991dae2c6b6cfd40/numpy-2.0.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+      - pypi: https://files.pythonhosted.org/packages/1c/1d/d25a41de931367d1e9f1070239f4a850f63e94999e694d0d2e8e5a2f94ca/numpydoc_decorator-2.2.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/2c/ab/fc8290c6a4c722e5514d80f62b2dc4c4df1a68a41d1364e625c35990fcf3/overrides-7.7.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/08/aa/cc0199a5f0ad350994d660967a8efb233fe0416e4639146c089643407ce6/packaging-24.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/38/f8/d8fddee9ed0d0c0f4a2132c1dfcf0e3e53265055da8df952a53e7eaf178c/pandas-2.2.3-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
@@ -174,9 +175,9 @@ packages:
   timestamp: 1650670423406
 - kind: pypi
   name: anjl
-  version: 0.9.0
-  url: https://files.pythonhosted.org/packages/d0/d4/934e9c692a69dab0e814d6097f044ac83a9e7f9fd2e95ed2f74ceebae684/anjl-0.9.0-py3-none-any.whl
-  sha256: 787855e2cbfbca4a78420193c65438e37d3f78ef64f32d3d81aef9ddf1660fcf
+  version: 1.0.0
+  url: https://files.pythonhosted.org/packages/b6/bc/7a65381c66eb07af25a582457dde7dfa31224ddc1811b00c979dd03e5c1d/anjl-1.0.0-py3-none-any.whl
+  sha256: 29eb26bf49dfadb8b414a4f1ca9d351617c85616068f3fbcc801f4c1aeebb664
   requires_dist:
   - ipykernel ; extra == 'dev'
   - ipywidgets ; extra == 'dev'
@@ -186,6 +187,7 @@ packages:
   - notebook ; extra == 'dev'
   - numba>=0.60.0
   - numpy
+  - numpydoc-decorator
   - pandas
   - pandas-stubs ; extra == 'dev'
   - plotly
@@ -1499,6 +1501,14 @@ packages:
   url: https://files.pythonhosted.org/packages/39/68/e9f1126d757653496dbc096cb429014347a36b228f5a991dae2c6b6cfd40/numpy-2.0.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
   sha256: 0123ffdaa88fa4ab64835dcbde75dcdf89c453c922f18dced6e27c90d1d0ec5a
   requires_python: '>=3.9'
+- kind: pypi
+  name: numpydoc-decorator
+  version: 2.2.1
+  url: https://files.pythonhosted.org/packages/1c/1d/d25a41de931367d1e9f1070239f4a850f63e94999e694d0d2e8e5a2f94ca/numpydoc_decorator-2.2.1-py3-none-any.whl
+  sha256: 16181c97b20c2099d6fd75404bef379cc3678338d9aa8e6e8fafb3ae7adc166a
+  requires_dist:
+  - typing-extensions
+  requires_python: '>=3.10,<3.13'
 - kind: conda
   name: openssl
   version: 3.3.2

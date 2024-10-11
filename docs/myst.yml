@@ -34,4 +34,4 @@ site:
     hide_toc: true
     hide_footer_links: true
     hide_outline: false
-    outline_maxdepth: 1
+    outline_maxdepth: 2
