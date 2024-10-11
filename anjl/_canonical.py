@@ -1,8 +1,7 @@
-from typing import Callable
-from collections.abc import Mapping
 import numpy as np
 from numpy.typing import NDArray
 from numba import njit, int64, float32, bool_, void
+from . import params
 
 
 INT64_MIN = np.int64(np.iinfo(np.int64).min)
@@ -14,11 +13,11 @@ BOUNDSCHECK = False
 
 
 def canonical_nj(
-    D: NDArray,
-    disallow_negative_distances: bool = True,
-    progress: Callable | None = None,
-    progress_options: Mapping = {},
-) -> NDArray[np.float32]:
+    D: params.D,
+    disallow_negative_distances: params.disallow_negative_distances = True,
+    progress: params.progress = None,
+    progress_options: params.progress_options = {},
+) -> params.Z:
     """TODO"""
 
     # Make a copy of distance matrix D because we will overwrite it during the

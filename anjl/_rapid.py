@@ -1,8 +1,7 @@
-from typing import Callable
-from collections.abc import Mapping
 import numpy as np
 from numpy.typing import NDArray
 from numba import njit, int64, float32, bool_
+from . import params
 
 
 INT64_MIN = np.int64(np.iinfo(np.int64).min)
@@ -14,11 +13,11 @@ BOUNDSCHECK = False
 
 
 def rapid_nj(
-    D: NDArray,
-    disallow_negative_distances: bool = True,
-    progress: Callable | None = None,
-    progress_options: Mapping = {},
-    gc: int | None = 100,
+    D: params.D,
+    disallow_negative_distances: params.disallow_negative_distances = True,
+    progress: params.progress = None,
+    progress_options: params.progress_options = {},
+    gc: params.gc = 100,
 ) -> NDArray[np.float32]:
     """TODO"""
 
