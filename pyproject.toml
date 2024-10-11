@@ -57,3 +57,7 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "numba"
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "numpydoc_decorator"
+ignore_missing_imports = true
