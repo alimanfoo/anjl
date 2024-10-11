@@ -2,14 +2,36 @@
 version: 1
 project:
   id: 07ba6502-843a-4b1a-9205-4c9504b2eea5
-  # title:
-  # description:
-  # keywords: []
-  # authors: []
+  title: "anjl 😇"
+  subtitle: "A neighbour-joining library for Python"
   github: https://github.com/alimanfoo/anjl
-  # To autogenerate a Table of Contents, run "myst init --write-toc"
+  description: >
+    anjl is a Python package providing fast implementations of the neighbour-joining
+    algorithm of Saitou and Nei and some associated utilities.
+  # keywords: []
+  authors:
+    - name: Alistair Miles
+      email: alistair.miles@sanger.ac.uk
+      twitter: alimanfoo
+      github: alimanfoo
+      affiliation: wsi
+  affiliations:
+    - id: wsi
+      institution: Wellcome Sanger Institute
+      department: Genomic Surveillance Unit
+      address: Wellcome Genome Campus
+      city: Hinxton
+      region: Cambridge
+      country: UK
+      postal_code: CB10 1SA
+  banner: banner.png
 site:
+  title: "anjl - A neighbour-joining library for Python"
   template: article-theme
-  # options:
-  #   favicon: favicon.ico
-  #   logo: site_logo.png
+  options:
+    # favicon: favicon.ico
+    # logo: site_logo.png
+    hide_toc: true
+    hide_footer_links: true
+    hide_outline: false
+    outline_maxdepth: 1
