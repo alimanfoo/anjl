@@ -36,7 +36,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/tzdata-2024b-hc8b5060_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/xz-5.2.6-h166bdaf_0.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/linux-64/zlib-1.3.1-hb9d3cd8_2.conda
-      - pypi: https://files.pythonhosted.org/packages/d1/a8/f21a1164b88df8c57097dfd86550a57349cafc8b78ff337aaba08ed371d3/anjl-0.8.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/d0/d4/934e9c692a69dab0e814d6097f044ac83a9e7f9fd2e95ed2f74ceebae684/anjl-0.9.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/78/b6/6307fbef88d9b5ee7421e68d78a9f162e0da4900bc5f5793f6d3d0e34fb8/annotated_types-0.7.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/9e/ef/7a4f225581a0d7886ea28359179cb861d7fbcdefad29663fc1167b86f69f/anyio-4.6.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/a4/6a/e8a041599e78b6b3752da48000b14c8d1e8a04ded09c88c714ba047f34f5/argon2_cffi-23.1.0-py3-none-any.whl
@@ -174,9 +174,9 @@ packages:
   timestamp: 1650670423406
 - kind: pypi
   name: anjl
-  version: 0.8.0
-  url: https://files.pythonhosted.org/packages/d1/a8/f21a1164b88df8c57097dfd86550a57349cafc8b78ff337aaba08ed371d3/anjl-0.8.0-py3-none-any.whl
-  sha256: cfcf0617e478694d509d19ad3de8f3dcf2cdc697a337ac9cb8aaebfc64d65a90
+  version: 0.9.0
+  url: https://files.pythonhosted.org/packages/d0/d4/934e9c692a69dab0e814d6097f044ac83a9e7f9fd2e95ed2f74ceebae684/anjl-0.9.0-py3-none-any.whl
+  sha256: 787855e2cbfbca4a78420193c65438e37d3f78ef64f32d3d81aef9ddf1660fcf
   requires_dist:
   - ipykernel ; extra == 'dev'
   - ipywidgets ; extra == 'dev'
@@ -184,7 +184,7 @@ packages:
   - memory-profiler ; extra == 'dev'
   - mypy ; extra == 'dev'
   - notebook ; extra == 'dev'
-  - numba>=0.60.0,<0.61.0
+  - numba>=0.60.0
   - numpy
   - pandas
   - pandas-stubs ; extra == 'dev'
@@ -197,7 +197,6 @@ packages:
   - scipy ; extra == 'dev'
   - snakeviz ; extra == 'dev'
   - tqdm ; extra == 'dev'
-  - yaspin ; extra == 'dev'
   - zarr ; extra == 'dev'
   requires_python: '>=3.10,<3.13'
 - kind: pypi
