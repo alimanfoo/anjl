@@ -220,7 +220,9 @@ def normalise_color_params(
         # different colors.
         color_discrete_map_prepped[""] = default_line_color
 
-    return category_orders, color_discrete_sequence, color_discrete_map_prepped
+        color_discrete_map = color_discrete_map_prepped
+
+    return category_orders, color_discrete_sequence, color_discrete_map
 
 
 def decorate_tree(
