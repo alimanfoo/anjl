@@ -2,7 +2,7 @@ from typing import Callable
 from collections.abc import Mapping
 import numpy as np
 from numpy.typing import NDArray
-import numba
+from numba import njit, int64, float32, bool_
 
 
 INT64_MIN = np.int64(np.iinfo(np.int64).min)
@@ -105,12 +105,18 @@ def rapid_nj(
     return Z
 
 
-@numba.njit
+@njit(
+    (float32[:, :],),
+    nogil=True,
+    fastmath=True,
+    error_model="numpy",
+    boundscheck=False,
+)
 def _rapid_setup_distance(D: NDArray[np.float32]):
     # Set the diagonal and upper triangle to inf so we can skip self-comparisons and
     # avoid double-comparison between leaf nodes.
-    D_sorted = np.full(shape=D.shape, dtype=np.float32, fill_value=FLOAT32_INF)
-    nodes_sorted = np.full(shape=D.shape, dtype=np.int64, fill_value=INT64_MIN)
+    D_sorted = np.full(shape=D.shape, dtype=float32, fill_value=FLOAT32_INF)
+    nodes_sorted = np.full(shape=D.shape, dtype=int64, fill_value=INT64_MIN)
     for i in range(D.shape[0]):
         D[i, i] = FLOAT32_INF  # avoid self comparisons in all iterations
         d = D[i, :i]
@@ -121,7 +127,19 @@ def _rapid_setup_distance(D: NDArray[np.float32]):
     return D_sorted, nodes_sorted
 
 
-@numba.njit
+@njit(
+    (
+        float32[:, :],  # D_sorted
+        int64[:, :],  # nodes_sorted
+        bool_[:],  # clustered
+        bool_[:],  # obsolete
+        int64,  # n_remaining
+    ),
+    nogil=True,
+    fastmath=True,
+    error_model="numpy",
+    boundscheck=False,
+)
 def _rapid_gc(
     D_sorted: NDArray[np.float32],
     nodes_sorted: NDArray[np.int64],
@@ -147,7 +165,223 @@ def _rapid_gc(
     return nodes_sorted, D_sorted
 
 
-@numba.njit
+@njit(
+    (
+        float32[:, :],  # D_sorted
+        float32[:],  # U
+        int64[:, :],  # nodes_sorted
+        bool_[:],  # clustered
+        bool_[:],  # obsolete
+        int64[:],  # id_to_index
+        int64,  # n_remaining
+        float32,  # u_max
+    ),
+    nogil=True,
+    fastmath=True,
+    error_model="numpy",
+    boundscheck=False,
+)
+def _rapid_search(
+    D_sorted: NDArray[np.float32],
+    U: NDArray[np.float32],
+    nodes_sorted: NDArray[np.int64],
+    clustered: NDArray[np.bool_],
+    obsolete: NDArray[np.bool_],
+    id_to_index: NDArray[np.int64],
+    n_remaining: int,
+    u_max: np.float32,
+) -> tuple[np.int64, np.int64]:
+    # Initialize working variables.
+    q_min = FLOAT32_INF
+    threshold = FLOAT32_INF
+    i_min = INT64_MIN
+    j_min = INT64_MIN
+    coefficient = np.float32(n_remaining - 2)
+    m = nodes_sorted.shape[0]
+    n = nodes_sorted.shape[1]
+    assert m == D_sorted.shape[0]
+    assert n == D_sorted.shape[1]
+
+    # Search all values up to threshold.
+    for i in range(m):
+        # Skip if row is no longer in use.
+        if obsolete[i]:
+            continue
+
+        # Obtain divergence for node corresponding to this row.
+        u_i = U[i]
+
+        # Search the row up to threshold.
+        for s in range(0, n):
+            # Obtain node identifier for the current item.
+            node_j = nodes_sorted[i, s]
+
+            # Break at end of nodes.
+            if node_j < 0:
+                break
+
+            # Skip if this node is already clustered.
+            if clustered[node_j]:
+                continue
+
+            # Access distance.
+            d = D_sorted[i, s]
+
+            # Partially calculate q.
+            q_partial = coefficient * d - u_i
+
+            # Limit search. Because the row is sorted, if we are already above this
+            # threshold then we know there is no need to search remaining nodes in the
+            # row.
+            if q_partial >= threshold:
+                break
+
+            # Fully calculate q.
+            j = id_to_index[node_j]
+            u_j = U[j]
+            q = q_partial - u_j
+
+            if q < q_min:
+                q_min = q
+                threshold = q_min + u_max
+                i_min = np.int64(i)
+                j_min = np.int64(j)
+
+    return i_min, j_min
+
+
+@njit(
+    (
+        float32[:, :],  # D
+        float32[:, :],  # D_sorted
+        float32[:],  # U
+        int64[:, :],  # nodes_sorted
+        int64[:],  # index_to_id
+        int64[:],  # id_to_index
+        bool_[:],  # clustered
+        bool_[:],  # obsolete
+        int64,  # parent
+        int64,  # child_i
+        int64,  # child_j
+        int64,  # i_min
+        int64,  # j_min
+        float32,  # d_ij
+    ),
+    nogil=True,
+    fastmath=True,
+    error_model="numpy",
+    boundscheck=False,
+)
+def _rapid_update(
+    D: NDArray[np.float32],
+    D_sorted: NDArray[np.float32],
+    U: NDArray[np.float32],
+    nodes_sorted: NDArray[np.int64],
+    index_to_id: NDArray[np.int64],
+    id_to_index: NDArray[np.int64],
+    clustered: NDArray[np.bool_],
+    obsolete: NDArray[np.bool_],
+    parent: np.int64,
+    child_i: np.int64,
+    child_j: np.int64,
+    i_min: np.int64,
+    j_min: np.int64,
+    d_ij: np.float32,
+) -> np.float32:
+    # Update data structures. Here we obsolete the row corresponding to the node at
+    # j_min, and we reuse the row at i_min for the new node.
+    clustered[child_i] = True
+    clustered[child_j] = True
+
+    # Assign the new node to row at i_min.
+    index_to_id[i_min] = parent
+    id_to_index[parent] = i_min
+
+    # Obsolete the row of data corresponding to the node at j_min.
+    obsolete[j_min] = True
+
+    # Initialize divergence for the new node.
+    u_new = np.float32(0)
+
+    # Find new max.
+    u_max = np.float32(0)
+
+    # Update distances and divergence.
+    for k in range(D.shape[0]):
+        if k == i_min or k == j_min or obsolete[k]:
+            continue
+
+        # Calculate distance from k to the new node.
+        d_ki = D[k, i_min]
+        d_kj = D[k, j_min]
+        d_k_new = 0.5 * (d_ki + d_kj - d_ij)
+        D[i_min, k] = d_k_new
+        D[k, i_min] = d_k_new
+
+        # Subtract out the distances for the nodes that have just been joined and add
+        # in distance for the new node.
+        u_k = U[k] - d_ki - d_kj + d_k_new
+        U[k] = u_k
+
+        # Record new max.
+        if u_k > u_max:
+            u_max = u_k
+
+        # Accumulate divergence for the new node.
+        u_new += d_k_new
+
+        # Distance from k to the obsolete node.
+        # D[j_min, k] = FLOAT32_INF  # not needed as this row is obsolete and never read
+        D[k, j_min] = FLOAT32_INF
+
+    # Store divergence for the new node.
+    U[i_min] = u_new
+
+    # Record new max.
+    if u_new > u_max:
+        u_max = u_new
+
+    # First cut down to just the active nodes.
+    active = ~obsolete
+    distances_new = D[i_min, active]
+    nodes_active = index_to_id[active]
+
+    # Now sort the new distances.
+    indices_sorted = np.argsort(distances_new)
+    nodes_sorted_new = nodes_active[indices_sorted]
+    distances_sorted_new = distances_new[indices_sorted]
+
+    # Now update sorted nodes and distances.
+    p = nodes_sorted_new.shape[0]
+    nodes_sorted[i_min, :p] = nodes_sorted_new
+    nodes_sorted[i_min, p:] = INT64_MIN
+    D_sorted[i_min, :p] = distances_sorted_new
+    D_sorted[i_min, p:] = FLOAT32_INF
+
+    return u_max
+
+
+@njit(
+    (
+        int64,  # iteration
+        float32[:, :],  # D
+        float32[:, :],  # D_sorted
+        float32[:],  # U
+        int64[:, :],  # nodes_sorted
+        int64[:],  # index_to_id
+        int64[:],  # id_to_index
+        bool_[:],  # clustered
+        bool_[:],  # obsolete
+        float32[:, :],  # Z
+        int64,  # n_original
+        bool_,  # disallow_negative_distances
+        float32,  # u_max
+    ),
+    nogil=True,
+    fastmath=True,
+    error_model="numpy",
+    boundscheck=False,
+)
 def _rapid_iteration(
     iteration: int,
     D: NDArray[np.float32],
@@ -255,165 +489,5 @@ def _rapid_iteration(
             j_min=j_min,
             d_ij=d_ij,
         )
-
-    return u_max
-
-
-@numba.njit
-def _rapid_search(
-    D_sorted: NDArray[np.float32],
-    U: NDArray[np.float32],
-    nodes_sorted: NDArray[np.int64],
-    clustered: NDArray[np.bool_],
-    obsolete: NDArray[np.bool_],
-    id_to_index: NDArray[np.int64],
-    n_remaining: int,
-    u_max: np.float32,
-) -> tuple[np.int64, np.int64]:
-    # Initialize working variables.
-    q_min = FLOAT32_INF
-    threshold = FLOAT32_INF
-    i_min = INT64_MIN
-    j_min = INT64_MIN
-    coefficient = np.float32(n_remaining - 2)
-    m = nodes_sorted.shape[0]
-    n = nodes_sorted.shape[1]
-    assert m == D_sorted.shape[0]
-    assert n == D_sorted.shape[1]
-
-    # Search all values up to threshold.
-    for i in range(m):
-        # Skip if row is no longer in use.
-        if obsolete[i]:
-            continue
-
-        # Obtain divergence for node corresponding to this row.
-        u_i = U[i]
-
-        # Search the row up to threshold.
-        for s in range(0, n):
-            # Obtain node identifier for the current item.
-            node_j = nodes_sorted[i, s]
-
-            # Break at end of nodes.
-            if node_j < 0:
-                break
-
-            # Skip if this node is already clustered.
-            if clustered[node_j]:
-                continue
-
-            # Access distance.
-            d = D_sorted[i, s]
-
-            # Partially calculate q.
-            q_partial = coefficient * d - u_i
-
-            # Limit search. Because the row is sorted, if we are already above this
-            # threshold then we know there is no need to search remaining nodes in the
-            # row.
-            if q_partial >= threshold:
-                break
-
-            # Fully calculate q.
-            j = id_to_index[node_j]
-            u_j = U[j]
-            q = q_partial - u_j
-
-            if q < q_min:
-                q_min = q
-                threshold = q_min + u_max
-                i_min = np.int64(i)
-                j_min = np.int64(j)
-
-    return i_min, j_min
-
-
-@numba.njit
-def _rapid_update(
-    D: NDArray[np.float32],
-    D_sorted: NDArray[np.float32],
-    U: NDArray[np.float32],
-    nodes_sorted: NDArray[np.int64],
-    index_to_id: NDArray[np.int64],
-    id_to_index: NDArray[np.int64],
-    clustered: NDArray[np.bool_],
-    obsolete: NDArray[np.bool_],
-    parent: np.int64,
-    child_i: np.int64,
-    child_j: np.int64,
-    i_min: np.int64,
-    j_min: np.int64,
-    d_ij: np.float32,
-) -> np.float32:
-    # Update data structures. Here we obsolete the row corresponding to the node at
-    # j_min, and we reuse the row at i_min for the new node.
-    clustered[child_i] = True
-    clustered[child_j] = True
-
-    # Assign the new node to row at i_min.
-    index_to_id[i_min] = parent
-    id_to_index[parent] = i_min
-
-    # Obsolete the row of data corresponding to the node at j_min.
-    obsolete[j_min] = True
-
-    # Initialize divergence for the new node.
-    u_new = np.float32(0)
-
-    # Find new max.
-    u_max = np.float32(0)
-
-    # Update distances and divergence.
-    for k in range(D.shape[0]):
-        if k == i_min or k == j_min or obsolete[k]:
-            continue
-
-        # Calculate distance from k to the new node.
-        d_ki = D[k, i_min]
-        d_kj = D[k, j_min]
-        d_k_new = 0.5 * (d_ki + d_kj - d_ij)
-        D[i_min, k] = d_k_new
-        D[k, i_min] = d_k_new
-
-        # Subtract out the distances for the nodes that have just been joined and add
-        # in distance for the new node.
-        u_k = U[k] - d_ki - d_kj + d_k_new
-        U[k] = u_k
-
-        # Record new max.
-        if u_k > u_max:
-            u_max = u_k
-
-        # Accumulate divergence for the new node.
-        u_new += d_k_new
-
-        # Distance from k to the obsolete node.
-        # D[j_min, k] = FLOAT32_INF  # not needed as this row is obsolete and never read
-        D[k, j_min] = FLOAT32_INF
-
-    # Store divergence for the new node.
-    U[i_min] = u_new
-
-    # Record new max.
-    if u_new > u_max:
-        u_max = u_new
-
-    # First cut down to just the active nodes.
-    active = ~obsolete
-    distances_new = D[i_min, active]
-    nodes_active = index_to_id[active]
-
-    # Now sort the new distances.
-    indices_sorted = np.argsort(distances_new)
-    nodes_sorted_new = nodes_active[indices_sorted]
-    distances_sorted_new = distances_new[indices_sorted]
-
-    # Now update sorted nodes and distances.
-    p = nodes_sorted_new.shape[0]
-    nodes_sorted[i_min, :p] = nodes_sorted_new
-    nodes_sorted[i_min, p:] = INT64_MIN
-    D_sorted[i_min, :p] = distances_sorted_new
-    D_sorted[i_min, p:] = FLOAT32_INF
 
     return u_max
