@@ -9,7 +9,7 @@ import pandas as pd
 from ._layout import layout_equal_angle
 
 
-def plot_equal_angle(
+def plot(
     Z: NDArray[np.float32],
     leaf_data: pd.DataFrame | None = None,
     color: str | None = None,
