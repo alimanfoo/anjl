@@ -7,6 +7,7 @@ from . import params
 
 INT64_MIN = np.int64(np.iinfo(np.int64).min)
 FLOAT32_INF = np.float32(np.inf)
+FLOAT32_NEGINF = np.float32(-np.inf)
 NOGIL = True
 FASTMATH = False  # setting True actually seems to slow things down
 ERROR_MODEL = "numpy"
@@ -221,11 +222,20 @@ def rapid_search(
     assert m == D_sorted.shape[0]
     assert n == D_sorted.shape[1]
 
+    # Locate active rows.
+    active = ~obsolete
+    active_row_indices = np.nonzero(active)[0]
+    active_U = U[active]
+
+    # Sort by U descending.
+    ix_sorted = np.argsort(active_U)
+    active_row_indices_sorted = active_row_indices[ix_sorted][::-1]
+
     # Search all values up to threshold.
-    for i in range(m):
-        # Skip if row is no longer in use.
-        if obsolete[i]:
-            continue
+    for i in active_row_indices_sorted:
+        # # Skip if row is no longer in use.
+        # if obsolete[i]:
+        #     continue
 
         # Obtain divergence for node corresponding to this row.
         u_i = U[i]
@@ -355,6 +365,7 @@ def rapid_update(
 
     # Store divergence for the new node.
     U[i_min] = u_new
+    U[j_min] = FLOAT32_NEGINF
 
     # Record new max.
     if u_new > u_max:
