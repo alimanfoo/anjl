@@ -90,6 +90,8 @@ def rapid_nj(
     if progress:
         iterator = progress(iterator, **progress_options)
 
+    visits = 0
+
     # Begin iterating.
     for iteration in iterator:
         # Number of nodes remaining in this iteration.
@@ -106,7 +108,7 @@ def rapid_nj(
             )
 
         # Perform one iteration of the neighbour-joining algorithm.
-        u_max = rapid_iteration(
+        u_max, visited = rapid_iteration(
             iteration=iteration,
             D=D_copy,
             D_sorted=D_sorted,
@@ -121,6 +123,10 @@ def rapid_nj(
             disallow_negative_distances=disallow_negative_distances,
             u_max=u_max,
         )
+
+        visits += visited
+
+    print(visits)
 
     return Z
 
@@ -210,7 +216,7 @@ def rapid_search(
     id_to_index: NDArray[np.int64],
     n_remaining: int,
     u_max: np.float32,
-) -> tuple[np.int64, np.int64]:
+) -> tuple[np.int64, np.int64, np.int64]:
     # Initialize working variables.
     q_min = FLOAT32_INF
     threshold = FLOAT32_INF
@@ -221,6 +227,12 @@ def rapid_search(
     n = nodes_sorted.shape[1]
     assert m == D_sorted.shape[0]
     assert n == D_sorted.shape[1]
+    visited = int64(0)
+
+    # for i in range(m):
+    #     # Skip if row is no longer in use.
+    #     if obsolete[i]:
+    #         continue
 
     # Locate active rows.
     active = ~obsolete
@@ -228,20 +240,18 @@ def rapid_search(
     active_U = U[active]
 
     # Sort by U descending.
-    ix_sorted = np.argsort(active_U)
-    active_row_indices_sorted = active_row_indices[ix_sorted][::-1]
+    loc_sorted = np.argsort(active_U)
+    active_row_indices_sorted = active_row_indices[loc_sorted][::-1]
 
     # Search all values up to threshold.
     for i in active_row_indices_sorted:
-        # # Skip if row is no longer in use.
-        # if obsolete[i]:
-        #     continue
-
         # Obtain divergence for node corresponding to this row.
         u_i = U[i]
 
         # Search the row up to threshold.
         for s in range(0, n):
+            visited += 1
+
             # Obtain node identifier for the current item.
             node_j = nodes_sorted[i, s]
 
@@ -272,11 +282,11 @@ def rapid_search(
 
             if q < q_min:
                 q_min = q
-                threshold = q_min + u_max
+                threshold = q_min + u_max  # TODO could this be updated?
                 i_min = np.int64(i)
                 j_min = np.int64(j)
 
-    return i_min, j_min
+    return i_min, j_min, visited
 
 
 @njit(
@@ -426,7 +436,7 @@ def rapid_iteration(
     n_original: int,
     disallow_negative_distances: bool,
     u_max: np.float32,
-) -> np.float32:
+) -> tuple[np.float32, np.int64]:
     # This will be the identifier for the new node to be created in this iteration.
     parent = iteration + n_original
 
@@ -435,7 +445,7 @@ def rapid_iteration(
 
     if n_remaining > 2:
         # Search for the closest pair of nodes to join.
-        i_min, j_min = rapid_search(
+        i_min, j_min, visited = rapid_search(
             D_sorted=D_sorted,
             U=U,
             nodes_sorted=nodes_sorted,
@@ -456,6 +466,8 @@ def rapid_iteration(
         d_j = 0.5 * (d_ij + (1 / (n_remaining - 2)) * (U[j_min] - U[i_min]))
 
     else:
+        visited = 0
+
         # Termination. Join the two remaining nodes, placing the final node at the
         # midpoint.
         child_i, child_j = np.nonzero(~clustered)[0]
@@ -520,4 +532,4 @@ def rapid_iteration(
             d_ij=d_ij,
         )
 
-    return u_max
+    return u_max, visited
