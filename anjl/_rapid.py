@@ -188,6 +188,10 @@ def rapid_gc(
             j_new += 1
     nodes_sorted = nodes_sorted[:, :n_remaining]
     D_sorted = D_sorted[:, :n_remaining]
+    print("-" * 79)
+    print("gc complete")
+    print("nodes_sorted\n", nodes_sorted)
+    print("D_sorted\n", D_sorted)
     return nodes_sorted, D_sorted
 
 
@@ -199,6 +203,7 @@ def rapid_gc(
         bool_[:],  # clustered
         bool_[:],  # obsolete
         int64[:],  # id_to_index
+        int64[:],  # index_to_id
         int64,  # n_remaining
         float32,  # u_max
     ),
@@ -214,6 +219,7 @@ def rapid_search(
     clustered: NDArray[np.bool_],
     obsolete: NDArray[np.bool_],
     id_to_index: NDArray[np.int64],
+    index_to_id: NDArray[np.int64],
     n_remaining: int,
     u_max: np.float32,
 ) -> tuple[np.int64, np.int64, np.int64]:
@@ -229,24 +235,27 @@ def rapid_search(
     assert n == D_sorted.shape[1]
     visited = int64(0)
 
-    # for i in range(m):
-    #     # Skip if row is no longer in use.
-    #     if obsolete[i]:
-    #         continue
+    # # Locate active rows.
+    # active = ~obsolete
+    # active_row_indices = np.nonzero(active)[0]
+    # active_U = U[active]
 
-    # Locate active rows.
-    active = ~obsolete
-    active_row_indices = np.nonzero(active)[0]
-    active_U = U[active]
+    # # Sort by U descending.
+    # loc_sorted = np.argsort(active_U)
+    # active_row_indices_sorted = active_row_indices[loc_sorted][::-1]
 
-    # Sort by U descending.
-    loc_sorted = np.argsort(active_U)
-    active_row_indices_sorted = active_row_indices[loc_sorted][::-1]
+    # # Search all values up to threshold.
+    # for i in active_row_indices_sorted:
 
-    # Search all values up to threshold.
-    for i in active_row_indices_sorted:
+    for i in range(m):
+        # Skip if row is no longer in use.
+        if obsolete[i]:
+            continue
+
         # Obtain divergence for node corresponding to this row.
         u_i = U[i]
+
+        node_i = index_to_id[i]
 
         # Search the row up to threshold.
         for s in range(0, n):
@@ -265,6 +274,14 @@ def rapid_search(
 
             # Access distance.
             d = D_sorted[i, s]
+
+            # Check that we are always looking backwards.
+            if node_j >= node_i:
+                print("*" * 78)
+                print("n_remaining", n_remaining)
+                print("i", i, "s", s, "node_i", node_i, "node_j", node_j, "d", d)
+                print("nodes_sorted[i]", nodes_sorted[i])
+                print("D_sorted[i]", D_sorted[i])
 
             # Partially calculate q.
             q_partial = coefficient * d - u_i
@@ -383,20 +400,27 @@ def rapid_update(
 
     # First cut down to just the active nodes.
     active = ~obsolete
-    distances_new = D[i_min, active]
+    active[i_min] = False  # remove self
+    distances_active = D[i_min, active]
     nodes_active = index_to_id[active]
 
     # Now sort the new distances.
-    indices_sorted = np.argsort(distances_new)
-    nodes_sorted_new = nodes_active[indices_sorted]
-    distances_sorted_new = distances_new[indices_sorted]
+    loc_sorted = np.argsort(distances_active)
+    distances_active_sorted = distances_active[loc_sorted]
+    nodes_active_sorted = nodes_active[loc_sorted]
 
     # Now update sorted nodes and distances.
-    p = nodes_sorted_new.shape[0]
-    nodes_sorted[i_min, :p] = nodes_sorted_new
+    p = nodes_active_sorted.shape[0]
+    nodes_sorted[i_min, :p] = nodes_active_sorted
     nodes_sorted[i_min, p:] = INT64_MIN
-    D_sorted[i_min, :p] = distances_sorted_new
+    D_sorted[i_min, :p] = distances_active_sorted
     D_sorted[i_min, p:] = FLOAT32_INF
+
+    print("-" * 79)
+    print("finished update")
+    print("i_min", i_min, "j_min", j_min, "child_i", child_i, "child_j", child_j)
+    print("nodes_sorted[i_min]", nodes_sorted[i_min])
+    print("D_sorted[i_min]", D_sorted[i_min])
 
     return u_max
 
@@ -452,6 +476,7 @@ def rapid_iteration(
             clustered=clustered,
             obsolete=obsolete,
             id_to_index=id_to_index,
+            index_to_id=index_to_id,
             n_remaining=n_remaining,
             u_max=u_max,
         )
