@@ -43,8 +43,7 @@ def rapid_nj(
     del D
 
     # Ensure zeros on diagonal for the initial sum.
-    for i in range(D_copy.shape[0]):
-        D_copy[i, i] = 0
+    np.fill_diagonal(D_copy, 0)
 
     # Initialize the "divergence" array, containing sum of distances to other nodes.
     U: NDArray[np.float32] = np.sum(D_copy, axis=1, dtype=np.float32)
