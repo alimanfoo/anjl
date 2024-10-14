@@ -42,6 +42,10 @@ def rapid_nj(
     D_copy: NDArray[np.float32] = np.array(D, copy=True, order="C", dtype=np.float32)
     del D
 
+    # Ensure zeros on diagonal for the initial sum.
+    for i in range(D_copy.shape[0]):
+        D_copy[i, i] = 0
+
     # Initialize the "divergence" array, containing sum of distances to other nodes.
     U: NDArray[np.float32] = np.sum(D_copy, axis=1, dtype=np.float32)
 
@@ -84,7 +88,7 @@ def rapid_nj(
     obsolete: NDArray[np.bool_] = np.zeros(shape=n_original, dtype=np.bool_)
 
     # Initialise max divergence values.
-    u_j_max = np.zeros(shape=n_nodes, dtype=np.float32)
+    u_j_max = np.zeros(shape=U.shape, dtype=np.float32)
     rapid_update_u_max(
         U=U, u_j_max=u_j_max, id_to_index=id_to_index, clustered=clustered
     )
@@ -93,8 +97,6 @@ def rapid_nj(
     iterator = range(n_internal)
     if progress:
         iterator = progress(iterator, **progress_options)
-
-    total_visited = 0
 
     # Begin iterating.
     for iteration in iterator:
@@ -112,7 +114,7 @@ def rapid_nj(
             )
 
         # Perform one iteration of the neighbour-joining algorithm.
-        visited = rapid_iteration(
+        rapid_iteration(
             iteration=iteration,
             D=D_copy,
             D_sorted=D_sorted,
@@ -127,10 +129,6 @@ def rapid_nj(
             disallow_negative_distances=disallow_negative_distances,
             u_j_max=u_j_max,
         )
-
-        total_visited += visited
-
-    print("total_visited", total_visited)
 
     return Z
 
@@ -175,15 +173,16 @@ def rapid_update_u_max(
     id_to_index,
     clustered,
 ) -> None:
+    # Here we exploit the fact that comparisons are always between a node and other
+    # nodes with lower identifiers, so we can obtain a max divergence for each row.
     n = id_to_index.shape[0]
     u_max = float32(0)
     for node in range(n):
         if not clustered[node]:
-            u_j_max[node] = u_max
             i = id_to_index[node]
+            u_j_max[i] = u_max
             u = U[i]
-            if u > u_max:
-                u_max = u
+            u_max = max(u, u_max)
 
 
 @njit(
@@ -232,7 +231,7 @@ def rapid_gc(
         bool_[:],  # clustered
         bool_[:],  # obsolete
         int64[:],  # id_to_index
-        int64[:],  # index_to_id
+        # int64[:],  # index_to_id
         int64,  # n_remaining
         float32[:],  # u_j_max
     ),
@@ -248,10 +247,10 @@ def rapid_search(
     clustered: NDArray[np.bool_],
     obsolete: NDArray[np.bool_],
     id_to_index: NDArray[np.int64],
-    index_to_id: NDArray[np.int64],
+    # index_to_id: NDArray[np.int64],
     n_remaining: int,
     u_j_max: NDArray[np.float32],
-) -> tuple[np.int64, np.int64, int]:
+) -> tuple[np.int64, np.int64]:
     # Initialize working variables.
     q_min = FLOAT32_INF
     i_min = INT64_MIN
@@ -261,7 +260,6 @@ def rapid_search(
     n = nodes_sorted.shape[1]
     assert m == D_sorted.shape[0]
     assert n == D_sorted.shape[1]
-    visited = 0
 
     # Search all values up to threshold.
     for i in range(m):
@@ -272,16 +270,12 @@ def rapid_search(
         # Obtain divergence for node corresponding to this row.
         u_i = U[i]
 
-        # Obtain node identifier for current row.
-        node_i = index_to_id[i]
-
         # Obtain max divergence for comparisons for this node.
-        u_max = u_j_max[node_i]
+        u_max = u_j_max[i]
         threshold = q_min + u_max
 
         # Search the row up to threshold.
         for s in range(0, n):
-            visited += 1
             # Obtain node identifier for the current item.
             node_j = nodes_sorted[i, s]
 
@@ -319,7 +313,7 @@ def rapid_search(
                 i_min = np.int64(i)
                 j_min = np.int64(j)
 
-    return i_min, j_min, visited
+    return i_min, j_min
 
 
 @njit(
@@ -466,7 +460,7 @@ def rapid_iteration(
     n_original: int,
     disallow_negative_distances: bool,
     u_j_max: NDArray[np.float32],
-) -> int:
+) -> None:
     # This will be the identifier for the new node to be created in this iteration.
     parent = iteration + n_original
 
@@ -475,14 +469,14 @@ def rapid_iteration(
 
     if n_remaining > 2:
         # Search for the closest pair of nodes to join.
-        i_min, j_min, visited = rapid_search(
+        i_min, j_min = rapid_search(
             D_sorted=D_sorted,
             U=U,
             nodes_sorted=nodes_sorted,
             clustered=clustered,
             obsolete=obsolete,
             id_to_index=id_to_index,
-            index_to_id=index_to_id,
+            # index_to_id=index_to_id,
             n_remaining=n_remaining,
             u_j_max=u_j_max,
         )
@@ -497,7 +491,6 @@ def rapid_iteration(
         d_j = 0.5 * (d_ij + (1 / (n_remaining - 2)) * (U[j_min] - U[i_min]))
 
     else:
-        visited = 0
         # Termination. Join the two remaining nodes, placing the final node at the
         # midpoint.
         child_i, child_j = np.nonzero(~clustered)[0]
@@ -562,5 +555,3 @@ def rapid_iteration(
             d_ij=d_ij,
             u_j_max=u_j_max,
         )
-
-    return visited
