@@ -192,6 +192,7 @@ def rapid_gc(
         bool_[:],  # clustered
         bool_[:],  # obsolete
         int64[:],  # id_to_index
+        # int64[:],  # index_to_id
         int64,  # n_remaining
         float32,  # u_max
     ),
@@ -207,6 +208,7 @@ def rapid_search(
     clustered: NDArray[np.bool_],
     obsolete: NDArray[np.bool_],
     id_to_index: NDArray[np.int64],
+    # index_to_id: NDArray[np.int64],
     n_remaining: int,
     u_max: np.float32,
 ) -> tuple[np.int64, np.int64]:
@@ -230,18 +232,24 @@ def rapid_search(
         # Obtain divergence for node corresponding to this row.
         u_i = U[i]
 
+        # # Obtain node identifier for current row.
+        # node_i = index_to_id[i]
+
         # Search the row up to threshold.
         for s in range(0, n):
             # Obtain node identifier for the current item.
             node_j = nodes_sorted[i, s]
 
-            # Break at end of nodes.
+            # Break at end of active nodes.
             if node_j < 0:
                 break
 
             # Skip if this node is already clustered.
             if clustered[node_j]:
                 continue
+
+            # # Ensure we are always looking backwards.
+            # assert node_j < node_i, (node_i, node_j)
 
             # Access distance.
             d = D_sorted[i, s]
@@ -315,6 +323,9 @@ def rapid_update(
     # Assign the new node to row at i_min.
     index_to_id[i_min] = parent
     id_to_index[parent] = i_min
+    index_to_id[j_min] = INT64_MIN
+    id_to_index[child_i] = INT64_MIN
+    id_to_index[child_j] = INT64_MIN
 
     # Obsolete the row of data corresponding to the node at j_min.
     obsolete[j_min] = True
@@ -362,19 +373,20 @@ def rapid_update(
 
     # First cut down to just the active nodes.
     active = ~obsolete
-    distances_new = D[i_min, active]
+    active[i_min] = False  # exclude self
+    distances_active = D[i_min, active]
     nodes_active = index_to_id[active]
 
     # Now sort the new distances.
-    indices_sorted = np.argsort(distances_new)
-    nodes_sorted_new = nodes_active[indices_sorted]
-    distances_sorted_new = distances_new[indices_sorted]
+    loc_sorted = np.argsort(distances_active)
+    nodes_active_sorted = nodes_active[loc_sorted]
+    distances_active_sorted = distances_active[loc_sorted]
 
     # Now update sorted nodes and distances.
-    p = nodes_sorted_new.shape[0]
-    nodes_sorted[i_min, :p] = nodes_sorted_new
+    p = nodes_active_sorted.shape[0]
+    nodes_sorted[i_min, :p] = nodes_active_sorted
     nodes_sorted[i_min, p:] = INT64_MIN
-    D_sorted[i_min, :p] = distances_sorted_new
+    D_sorted[i_min, :p] = distances_active_sorted
     D_sorted[i_min, p:] = FLOAT32_INF
 
     return u_max
@@ -431,6 +443,7 @@ def rapid_iteration(
             clustered=clustered,
             obsolete=obsolete,
             id_to_index=id_to_index,
+            # index_to_id=index_to_id,
             n_remaining=n_remaining,
             u_max=u_max,
         )
