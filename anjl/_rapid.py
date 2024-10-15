@@ -419,9 +419,10 @@ def rapid_update(
     # Now update sorted nodes and distances.
     p = nodes_active_sorted.shape[0]
     nodes_sorted[i_min, :p] = nodes_active_sorted
-    nodes_sorted[i_min, p:] = UINTP_MAX
     D_sorted[i_min, :p] = distances_active_sorted
-    D_sorted[i_min, p:] = FLOAT32_INF
+    # Mark the end of active nodes.
+    nodes_sorted[i_min, p] = UINTP_MAX
+    D_sorted[i_min, p] = FLOAT32_INF
 
     # Update max divergences.
     rapid_update_u_max(
