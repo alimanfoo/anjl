@@ -524,6 +524,22 @@ files = [
 ]
 
 [[package]]
+name = "devtools"
+version = "0.12.2"
+description = "Python's missing debug print command, and more."
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "devtools-0.12.2-py3-none-any.whl", hash = "sha256:c366e3de1df4cdd635f1ad8cbcd3af01a384d7abda71900e68d43b04eb6aaca7"},
+    {file = "devtools-0.12.2.tar.gz", hash = "sha256:efceab184cb35e3a11fa8e602cc4fadacaa2e859e920fc6f87bf130b69885507"},
+]
+
+[package.dependencies]
+asttokens = ">=2.0.0,<3.0.0"
+executing = ">=1.1.1"
+pygments = ">=2.15.0"
+
+[[package]]
 name = "distlib"
 version = "0.3.9"
 description = "Distribution utilities"
@@ -2949,9 +2965,9 @@ docs = ["numcodecs[msgpack]", "numpydoc", "pydata-sphinx-theme", "sphinx", "sphi
 jupyter = ["ipytree (>=0.2.2)", "ipywidgets (>=8.0.0)", "notebook"]
 
 [extras]
-dev = ["ipykernel", "ipywidgets", "jupyterlab", "memory-profiler", "mypy", "notebook", "pandas-stubs", "pre-commit", "profila", "pytest", "pytest-xdist", "ruff", "scipy", "snakeviz", "tqdm", "zarr"]
+dev = ["devtools", "ipykernel", "ipywidgets", "jupyterlab", "memory-profiler", "mypy", "notebook", "pandas-stubs", "pre-commit", "profila", "pytest", "pytest-xdist", "ruff", "scipy", "snakeviz", "tqdm", "zarr"]
 
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.13"
-content-hash = "c10e46828a5617a3a6bcede15c39205c3e53a76042b8e267f245ef8d8832de1e"
+content-hash = "f243a42174481554f5267af53a25fbdc38f6efee69c80ef935dc82e22436936f"

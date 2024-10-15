@@ -371,18 +371,11 @@ def rapid_update(
 ) -> None:
     # Update data structures. Here we obsolete the row corresponding to the node at
     # j_min, and we reuse the row at i_min for the new node.
+    obsolete[j_min] = True
     clustered[child_i] = True
     clustered[child_j] = True
-
-    # Assign the new node to row at i_min.
     index_to_id[i_min] = parent
     id_to_index[parent] = i_min
-    index_to_id[j_min] = UINTP_MAX
-    id_to_index[child_i] = UINTP_MAX
-    id_to_index[child_j] = UINTP_MAX
-
-    # Obsolete the row of data corresponding to the node at j_min.
-    obsolete[j_min] = True
 
     # Initialize divergence for the new node.
     u_new = np.float32(0)
@@ -409,10 +402,6 @@ def rapid_update(
         # Accumulate divergence for the new node.
         u_new += d_k_new
 
-        # Distance from k to the obsolete node.
-        # D[j_min, k] = FLOAT32_INF  # not needed as this row is obsolete and never read
-        D[k, j_min] = FLOAT32_INF
-
     # Store divergence for the new node.
     U[i_min] = u_new
 
@@ -430,9 +419,10 @@ def rapid_update(
     # Now update sorted nodes and distances.
     p = nodes_active_sorted.shape[0]
     nodes_sorted[i_min, :p] = nodes_active_sorted
-    nodes_sorted[i_min, p:] = UINTP_MAX
     D_sorted[i_min, :p] = distances_active_sorted
-    D_sorted[i_min, p:] = FLOAT32_INF
+    # Mark the end of active nodes.
+    nodes_sorted[i_min, p] = UINTP_MAX
+    D_sorted[i_min, p] = FLOAT32_INF
 
     # Update max divergences.
     rapid_update_u_max(
