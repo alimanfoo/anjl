@@ -402,10 +402,6 @@ def rapid_update(
         # Accumulate divergence for the new node.
         u_new += d_k_new
 
-        # Distance from k to the obsolete node.
-        # D[j_min, k] = FLOAT32_INF  # not needed as this row is obsolete and never read
-        D[k, j_min] = FLOAT32_INF
-
     # Store divergence for the new node.
     U[i_min] = u_new
 
