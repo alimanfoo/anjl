@@ -377,9 +377,9 @@ def rapid_update(
     # Assign the new node to row at i_min.
     index_to_id[i_min] = parent
     id_to_index[parent] = i_min
-    index_to_id[j_min] = UINTP_MAX
-    id_to_index[child_i] = UINTP_MAX
-    id_to_index[child_j] = UINTP_MAX
+    # index_to_id[j_min] = UINTP_MAX
+    # id_to_index[child_i] = UINTP_MAX
+    # id_to_index[child_j] = UINTP_MAX
 
     # Obsolete the row of data corresponding to the node at j_min.
     obsolete[j_min] = True
