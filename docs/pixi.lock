@@ -23,7 +23,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libstdcxx-14.1.0-hc0a3c3a_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libstdcxx-ng-14.1.0-h4852527_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libuuid-2.38.1-h0b41bf4_0.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-64/libuv-1.49.0-hb9d3cd8_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/libuv-1.49.1-hb9d3cd8_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libxcrypt-4.4.36-hd590300_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/libzlib-1.3.1-hb9d3cd8_2.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/mystmd-1.3.12-pyhd8ed1ab_0.conda
@@ -36,9 +36,9 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/tzdata-2024b-hc8b5060_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/xz-5.2.6-h166bdaf_0.tar.bz2
       - conda: https://conda.anaconda.org/conda-forge/linux-64/zlib-1.3.1-hb9d3cd8_2.conda
-      - pypi: https://files.pythonhosted.org/packages/b6/bc/7a65381c66eb07af25a582457dde7dfa31224ddc1811b00c979dd03e5c1d/anjl-1.0.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/1e/25/f5342dfdf1c36c0dfbf741f34d804fd51c3fbae1137a4fe8a7530d726314/anjl-1.1.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/78/b6/6307fbef88d9b5ee7421e68d78a9f162e0da4900bc5f5793f6d3d0e34fb8/annotated_types-0.7.0-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/9e/ef/7a4f225581a0d7886ea28359179cb861d7fbcdefad29663fc1167b86f69f/anyio-4.6.0-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/e4/f5/f2b75d2fc6f1a260f340f0e7c6a060f4dd2961cc16884ed851b0d18da06a/anyio-4.6.2.post1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/a4/6a/e8a041599e78b6b3752da48000b14c8d1e8a04ded09c88c714ba047f34f5/argon2_cffi-23.1.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/ec/f7/378254e6dd7ae6f31fe40c8649eea7d4832a42243acaf0f1fff9083b2bed/argon2_cffi_bindings-21.2.0-cp36-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/f8/ed/e97229a566617f2ae958a6b13e7cc0f585470eac730a73e9e82c32a3cdd2/arrow-1.3.0-py3-none-any.whl
@@ -175,9 +175,9 @@ packages:
   timestamp: 1650670423406
 - kind: pypi
   name: anjl
-  version: 1.0.0
-  url: https://files.pythonhosted.org/packages/b6/bc/7a65381c66eb07af25a582457dde7dfa31224ddc1811b00c979dd03e5c1d/anjl-1.0.0-py3-none-any.whl
-  sha256: 29eb26bf49dfadb8b414a4f1ca9d351617c85616068f3fbcc801f4c1aeebb664
+  version: 1.1.0
+  url: https://files.pythonhosted.org/packages/1e/25/f5342dfdf1c36c0dfbf741f34d804fd51c3fbae1137a4fe8a7530d726314/anjl-1.1.0-py3-none-any.whl
+  sha256: 8f27e733b84966ff41dc8d7c285282baea5227a9d7bceccfd98aaed8ad466c4e
   requires_dist:
   - ipykernel ; extra == 'dev'
   - ipywidgets ; extra == 'dev'
@@ -211,9 +211,9 @@ packages:
   requires_python: '>=3.8'
 - kind: pypi
   name: anyio
-  version: 4.6.0
-  url: https://files.pythonhosted.org/packages/9e/ef/7a4f225581a0d7886ea28359179cb861d7fbcdefad29663fc1167b86f69f/anyio-4.6.0-py3-none-any.whl
-  sha256: c7d2e9d63e31599eeb636c8c5c03a7e108d73b345f064f1c19fdc87b79036a9a
+  version: 4.6.2.post1
+  url: https://files.pythonhosted.org/packages/e4/f5/f2b75d2fc6f1a260f340f0e7c6a060f4dd2961cc16884ed851b0d18da06a/anyio-4.6.2.post1-py3-none-any.whl
+  sha256: 6d170c36fba3bdd840c73d3868c1e777e33676a69c3a72cf0a0d5d6d8009b61d
   requires_dist:
   - idna>=2.8
   - sniffio>=1.1
@@ -232,6 +232,7 @@ packages:
   - pytest-mock>=3.6.1 ; extra == 'test'
   - trustme ; extra == 'test'
   - uvloop>=0.21.0b1 ; platform_python_implementation == 'CPython' and platform_system != 'Windows' and extra == 'test'
+  - truststore>=0.9.1 ; python_full_version >= '3.10' and extra == 'test'
   - trio>=0.26.1 ; extra == 'trio'
   requires_python: '>=3.9'
 - kind: pypi
@@ -1237,20 +1238,20 @@ packages:
   timestamp: 1680112270483
 - kind: conda
   name: libuv
-  version: 1.49.0
+  version: 1.49.1
   build: hb9d3cd8_0
   subdir: linux-64
-  url: https://conda.anaconda.org/conda-forge/linux-64/libuv-1.49.0-hb9d3cd8_0.conda
-  sha256: 8324c5bd275d5ed12fc6614a5dd657314eccf0d53304fbe09b0bc77197d4fc57
-  md5: 925a0022e1fa4f888ceed96a309a5baf
+  url: https://conda.anaconda.org/conda-forge/linux-64/libuv-1.49.1-hb9d3cd8_0.conda
+  sha256: e9336f0cb4f1c2763ef1db163402fe556aaa8d840d62191d9d5062aa6d7dd658
+  md5: 52849ca4b3be33ac3f01c77da737e068
   depends:
   - __glibc >=2.17,<3.0.a0
   - libgcc >=13
   license: MIT
   license_family: MIT
   purls: []
-  size: 878395
-  timestamp: 1727283212868
+  size: 879954
+  timestamp: 1728653174677
 - kind: conda
   name: libxcrypt
   version: 4.4.36
