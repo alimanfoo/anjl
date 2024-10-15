@@ -8,7 +8,7 @@ from numpydoc_decorator import doc
 UINTP_MAX = np.uintp(np.iinfo(np.uintp).max)
 FLOAT32_INF = np.float32(np.inf)
 NOGIL = True
-FASTMATH = False  # setting True actually seems to slow things down
+FASTMATH = True
 ERROR_MODEL = "numpy"
 BOUNDSCHECK = False
 

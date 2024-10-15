@@ -702,6 +702,19 @@ socks = ["socksio (==1.*)"]
 zstd = ["zstandard (>=0.18.0)"]
 
 [[package]]
+name = "icc-rt"
+version = "2020.0.133"
+description = "Intel(R) Compiler Runtime"
+optional = false
+python-versions = "*"
+files = [
+    {file = "icc_rt-2020.0.133-py2.py3-none-manylinux1_x86_64.whl", hash = "sha256:17a173e65cee0c516358172b9cc96fe297dd54f4d6b23d57f79c62d9e105e3cf"},
+]
+
+[package.dependencies]
+intel-openmp = "==2020.*"
+
+[[package]]
 name = "identify"
 version = "2.6.1"
 description = "File identification library for Python"
@@ -738,6 +751,16 @@ python-versions = ">=3.7"
 files = [
     {file = "iniconfig-2.0.0-py3-none-any.whl", hash = "sha256:b6a85871a79d2e3b22d2d1b94ac2824226a63c6b741c88f7ae975f18b6778374"},
     {file = "iniconfig-2.0.0.tar.gz", hash = "sha256:2d91e135bf72d31a410b17c16da610a82cb55f6b0477d1a902134b24a455b8b3"},
+]
+
+[[package]]
+name = "intel-openmp"
+version = "2020.0.133"
+description = "Intel(R) OpenMP Runtime Library"
+optional = false
+python-versions = "*"
+files = [
+    {file = "intel_openmp-2020.0.133-py2.py3-none-manylinux1_x86_64.whl", hash = "sha256:cb9a12b0a1cb3f9c44a75959f687e548dc642a9470be3c63f73bccf291b8dcc8"},
 ]
 
 [[package]]
@@ -2965,9 +2988,9 @@ docs = ["numcodecs[msgpack]", "numpydoc", "pydata-sphinx-theme", "sphinx", "sphi
 jupyter = ["ipytree (>=0.2.2)", "ipywidgets (>=8.0.0)", "notebook"]
 
 [extras]
-dev = ["devtools", "ipykernel", "ipywidgets", "jupyterlab", "memory-profiler", "mypy", "notebook", "pandas-stubs", "pre-commit", "profila", "pytest", "pytest-xdist", "ruff", "scipy", "snakeviz", "tqdm", "zarr"]
+dev = ["devtools", "icc-rt", "ipykernel", "ipywidgets", "jupyterlab", "memory-profiler", "mypy", "notebook", "pandas-stubs", "pre-commit", "profila", "pytest", "pytest-xdist", "ruff", "scipy", "snakeviz", "tqdm", "zarr"]
 
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.13"
-content-hash = "f243a42174481554f5267af53a25fbdc38f6efee69c80ef935dc82e22436936f"
+content-hash = "0c2dcc7636117607484196ba80df48cdcf32e61889f681a83b91ea4cecdc186d"
