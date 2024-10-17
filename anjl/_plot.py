@@ -192,7 +192,7 @@ def normalise_color_params(
         # color_discrete_map parameters.
 
         # Access the leaf colors.
-        leaf_color_values = np.asarray(leaf_data[color].values)
+        leaf_color_values = np.asarray(leaf_data[color].dropna().values)
 
         # Find all unique color values.
         unique_color_values = np.unique(leaf_color_values)
