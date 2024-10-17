@@ -79,6 +79,8 @@ default_line_color: TypeAlias = Annotated[
     str, "Line color to use for edges where descendants are different colors."
 ]
 
+na_color: TypeAlias = Annotated[str, "Color to use where data are missing."]
+
 fig_width: TypeAlias = Annotated[
     int | float | None,
     "Figure width in pixels (px).",
