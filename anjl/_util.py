@@ -1,4 +1,24 @@
+import os
+import numpy as np
 from . import params
+
+
+# Common configuration for numba jitted functions.
+NOGIL = True
+FASTMATH = False  # setting True actually seems to slow things down
+ERROR_MODEL = "numpy"
+# Detect whether we are running via pytest, if so run with boundscheck enabled to catch
+# any out of bounds errors.
+# https://docs.pytest.org/en/stable/example/simple.html#detect-if-running-from-within-a-pytest-run
+if os.environ.get("PYTEST_VERSION") is not None:
+    BOUNDSCHECK = True
+else:
+    BOUNDSCHECK = False
+
+
+# Convenience constants.
+UINTP_MAX = np.uintp(np.iinfo(np.uintp).max)
+FLOAT32_INF = np.float32(np.inf)
 
 
 def to_string(Z: params.Z) -> str:
