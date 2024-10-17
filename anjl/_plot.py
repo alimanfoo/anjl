@@ -39,7 +39,8 @@ def plot(
     category_orders: params.category_order = None,
     leaf_legend: params.leaf_legend = True,
     edge_legend: params.edge_legend = False,
-    default_line_color: params.default_line_color = "black",
+    default_line_color: params.default_line_color = "gray",
+    na_color: params.na_color = "black",
     width: params.fig_width = 700,
     height: params.fig_height = 600,
     render_mode: params.render_mode = "auto",
@@ -64,6 +65,16 @@ def plot(
     if color is None and symbol is None:
         leaf_legend = edge_legend = False
 
+    # Handle missingness in a consistent way. This ensures that nodes and edges which
+    # have a missing value for either color or symbol column are still drawn in the
+    # plot.
+    if leaf_data is not None:
+        leaf_data = leaf_data.copy()
+        if color is not None:
+            leaf_data[color] = leaf_data[color].fillna("<NA>")
+        if symbol is not None:
+            leaf_data[symbol] = leaf_data[symbol].fillna("<NA>")
+
     # Decorate the tree.
     df_internal_nodes, df_leaf_nodes, df_edges = decorate_tree(
         Z=Z,
@@ -83,6 +94,7 @@ def plot(
             color_discrete_sequence=color_discrete_sequence,
             color_discrete_map=color_discrete_map,
             default_line_color=default_line_color,
+            na_color=na_color,
         )
     )
 
@@ -183,6 +195,7 @@ def normalise_color_params(
     color_discrete_sequence: params.color_discrete_sequence,
     color_discrete_map: params.color_discrete_map,
     default_line_color: params.default_line_color,
+    na_color: params.na_color,
 ) -> tuple[
     params.category_order, params.color_discrete_sequence, params.color_discrete_map
 ]:
@@ -191,11 +204,8 @@ def normalise_color_params(
         # and normalise the category_orders, color_discrete_sequence and
         # color_discrete_map parameters.
 
-        # Access the leaf colors.
-        leaf_color_values = np.asarray(leaf_data[color].values)
-
         # Find all unique color values.
-        unique_color_values = np.unique(leaf_color_values)
+        unique_color_values = leaf_data[color].unique()
 
         # Normalise category orders.
         if category_orders is None:
@@ -219,6 +229,9 @@ def normalise_color_params(
         # Set a default color for edges where descendant leaves have
         # different colors.
         color_discrete_map_prepped[""] = default_line_color
+
+        # Set a color for missing data.
+        color_discrete_map_prepped["<NA>"] = na_color
 
         color_discrete_map = color_discrete_map_prepped
 

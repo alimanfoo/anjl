@@ -1,4 +1,5 @@
 import plotly.graph_objects as go
+import numpy as np
 import anjl
 
 
@@ -17,4 +18,21 @@ def test_wikipedia_example():
     D, _ = anjl.data.wikipedia_example()
     Z = anjl.canonical_nj(D)
     fig = anjl.plot(Z)
+    assert isinstance(fig, go.Figure)
+
+
+def test_mosquitoes():
+    D, leaf_data = anjl.data.mosquitoes()
+    Z = anjl.rapid_nj(D)
+    fig = anjl.plot(Z, leaf_data=leaf_data, color="location", symbol="taxon")
+    assert isinstance(fig, go.Figure)
+
+
+def test_gh38():
+    # https://github.com/alimanfoo/anjl/issues/38
+    D, leaf_data = anjl.data.mosquitoes()
+    leaf_data.loc[0, "taxon"] = np.nan
+    leaf_data.loc[1, "location"] = np.nan
+    Z = anjl.rapid_nj(D)
+    fig = anjl.plot(Z, leaf_data=leaf_data, color="location", symbol="taxon")
     assert isinstance(fig, go.Figure)
