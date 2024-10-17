@@ -1,16 +1,9 @@
 import numpy as np
 from numpy.typing import NDArray
 from numba import njit, uintp, float32, bool_, void
-from . import params
 from numpydoc_decorator import doc
-
-
-UINTP_MAX = np.uintp(np.iinfo(np.uintp).max)
-FLOAT32_INF = np.float32(np.inf)
-NOGIL = True
-FASTMATH = False  # setting True actually seems to slow things down
-ERROR_MODEL = "numpy"
-BOUNDSCHECK = False
+from . import params
+from ._util import NOGIL, FASTMATH, ERROR_MODEL, BOUNDSCHECK, FLOAT32_INF, UINTP_MAX
 
 
 @doc(
