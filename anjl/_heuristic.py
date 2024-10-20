@@ -139,27 +139,29 @@ def heuristic_init(
 
     # Scan the lower triangle of the distance matrix.
     for _i in range(n):
-        i = np.uintp(_i)
-        row_q_min = FLOAT32_INF
-        row_j_min = UINTP_MAX
+        i = np.uintp(_i)  # row index
+        j = UINTP_MAX  # column index of row q minimum
+        q_ij = FLOAT32_INF  # row q minimum
+        d_ij = FLOAT32_INF  # distance of row q minimum
         u_i = U[i]
-        for _j in range(i):
-            j = np.uintp(_j)
-            u_j = U[j]
-            d = D[i, j]
-            q = coefficient * d - u_i - u_j
-            if q < row_q_min:
+        for _k in range(i):
+            k = np.uintp(_k)
+            u_k = U[k]
+            d = D[i, k]
+            q = coefficient * d - u_i - u_k
+            if q < q_ij:
                 # Found new minimum within this row.
-                row_q_min = q
-                row_j_min = j
-            if q < q_xy:
-                # Found new global minimum.
-                q_xy = q
-                d_xy = d
-                x = i
-                y = j
+                q_ij = q
+                d_ij = d
+                j = k
         # Store minimum for this row.
-        J[i] = row_j_min
+        J[i] = j
+        if q_ij < q_xy:
+            # Found new global minimum.
+            q_xy = q_ij
+            d_xy = d_ij
+            x = i
+            y = j
 
     # Sanity checks.
     assert x < n
