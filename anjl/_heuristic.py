@@ -318,7 +318,7 @@ def heuristic_iteration(
     if n_remaining > 2:
         # Search for the closest pair of nodes to join.
         x, y, d_xy = heuristic_search(
-            D=D, U=U, obsolete=obsolete, n_remaining=n_remaining
+            D=D, U=U, Q=Q, J=J, z=z, obsolete=obsolete, n_remaining=n_remaining
         )
 
         # Calculate distances to the new internal node.
@@ -328,9 +328,9 @@ def heuristic_iteration(
     else:
         # Termination. Join the two remaining nodes, placing the final node at the
         # midpoint.
-        _i_min, _j_min = np.nonzero(~obsolete)[0]
-        x = uintp(_i_min)
-        y = uintp(_j_min)
+        _x, _y = np.nonzero(~obsolete)[0]
+        x = uintp(_x)
+        y = uintp(_y)
         d_xy = D[x, y]
         d_xz = d_xy / 2
         d_yz = d_xy / 2
@@ -341,36 +341,28 @@ def heuristic_iteration(
         d_yz = max(float32(0), d_yz)
 
     # Get IDs for the nodes to be joined.
-    child_i = index_to_id[x]
-    child_j = index_to_id[y]
+    child_x = index_to_id[x]
+    child_y = index_to_id[y]
 
     # Sanity checks.
-    assert x >= 0
-    assert y >= 0
+    assert x < n_original
+    assert y < n_original
     assert x != y
-    assert child_i >= 0
-    assert child_j >= 0
-    assert child_i != child_j
-
-    # Stabilise ordering for easier comparisons.
-    if child_i > child_j:
-        child_i, child_j = child_j, child_i
-        x, y = y, x
-        d_xz, d_yz = d_yz, d_xz
+    assert child_x != child_y
 
     # Get number of leaves.
-    if child_i < n_original:
+    if child_x < n_original:
         leaves_i = float32(1)
     else:
-        leaves_i = Z[child_i - n_original, 4]
-    if child_j < n_original:
+        leaves_i = Z[child_x - n_original, 4]
+    if child_y < n_original:
         leaves_j = float32(1)
     else:
-        leaves_j = Z[child_j - n_original, 4]
+        leaves_j = Z[child_y - n_original, 4]
 
     # Store new node data.
-    Z[iteration, 0] = child_i
-    Z[iteration, 1] = child_j
+    Z[iteration, 0] = child_x
+    Z[iteration, 1] = child_y
     Z[iteration, 2] = d_xz
     Z[iteration, 3] = d_yz
     Z[iteration, 4] = leaves_i + leaves_j
@@ -389,5 +381,62 @@ def heuristic_iteration(
         )
 
 
-def heuristic_search():
-    pass
+def heuristic_search(
+    D: NDArray[np.float32],
+    U: NDArray[np.float32],
+    Q,
+    J,
+    z,
+    obsolete: NDArray[np.bool_],
+    n_remaining,
+):
+    # TODO
+
+    # Size of the distance matrix.
+    # n = uintp(D.shape[0])
+
+    # Distance between pair of nodes with global minimum.
+    d_xy = FLOAT32_INF
+
+    # Global minimum join criterion.
+    q_xy = FLOAT32_INF
+
+    # Indices of the pair of nodes with the global minimum, to be joined.
+    x = UINTP_MAX
+    y = UINTP_MAX
+
+    # Partially compute outside loop.
+    coefficient = float32(n_remaining - 2)
+
+    # First search the row corresponding to the new node z, because we need to
+    # calculate all q values for this row.
+    u_z = U[z]
+    z_q_min = FLOAT32_INF
+    z_j_min = UINTP_MAX
+    for _j in range(z):
+        j = uintp(_j)
+        if obsolete[j]:
+            continue
+        u_j = U[j]
+        d = D[x, j]
+        q = coefficient * d - u_z - u_j
+        if q < z_q_min:
+            # Found new minimum within this row.
+            z_q_min = q
+            z_j_min = j
+        if q < q_xy:
+            # Found new global minimum.
+            q_xy = q
+            d_xy = d
+            x = z
+            y = j
+    # Store minimum for this row.
+    Q[z] = z_q_min
+    J[z] = z_j_min
+
+    # Next search all other rows, but calculating q only for the previous best pair
+    # of nodes and for the new node.
+
+    # TODO
+
+    return x, y, d_xy
