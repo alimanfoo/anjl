@@ -19,14 +19,39 @@ from ._util import NOGIL, FASTMATH, ERROR_MODEL, BOUNDSCHECK, FLOAT32_INF, UINTP
 def heuristic_init(
     D,
     U,
+    Z,
+    obsolete,
+    index_to_id,
+    disallow_negative_distances,
 ):
+    # Here we take a first pass through the distance matrix to locate the first pair
+    # of nodes to join, and initialise the data structures needed for the heuristic
+    # algotithm.
+
+    # Size of the distance matrix.
     n = uintp(D.shape[0])
-    q_min = FLOAT32_INF
-    i_min = UINTP_MAX
-    j_min = UINTP_MAX
+
+    # Distance between pair of nodes with global minimum.
+    d_xy = FLOAT32_INF
+
+    # Global minimum join criterion.
+    q_xy = FLOAT32_INF
+
+    # Indices of the pair of nodes with the global minimum, to be joined.
+    x = UINTP_MAX
+    y = UINTP_MAX
+
+    # Partially compute outside loop.
     coefficient = float32(n - 2)
+
+    # Minimum join criterion per row.
     Q = np.empty(shape=n, dtype=float32)
+
+    # Index of node where minimum join criterion per node, i.e., nearest neighbour
+    # within each row.
     J = np.empty(shape=n, dtype=uintp)
+
+    # Scan the lower triangle of the distance matrix.
     for _i in range(n):
         i = uintp(_i)
         row_q_min = FLOAT32_INF
@@ -38,15 +63,79 @@ def heuristic_init(
             d = D[i, j]
             q = coefficient * d - u_i - u_j
             if q < row_q_min:
+                # Found new minimum within this row.
                 row_q_min = q
                 row_j_min = j
-            if q < q_min:
-                q_min = q
-                i_min = j
-                j_min = j
+            if q < q_xy:
+                # Found new global minimum.
+                q_xy = q
+                d_xy = d
+                x = i
+                y = j
+        # Store minimum for this row.
         Q[i] = row_q_min
         J[i] = row_j_min
-    return Q, J, i_min, j_min
+
+    # Sanity checks.
+    assert x < n
+    assert y < n
+    assert x != y
+
+    # Calculate distances to the new internal node.
+    d_xz = 0.5 * (d_xy + (1 / (n - 2)) * (U[x] - U[y]))
+    d_yz = 0.5 * (d_xy + (1 / (n - 2)) * (U[y] - U[x]))
+
+    # Handle possibility of negative distances.
+    if disallow_negative_distances:
+        d_xz = max(float32(0), d_xz)
+        d_yz = max(float32(0), d_yz)
+
+    # Store new node data.
+    Z[0, 0] = x
+    Z[0, 1] = y
+    Z[0, 2] = d_xz
+    Z[0, 3] = d_yz
+    Z[0, 4] = 2
+
+    # Identifier for the new node.
+    parent = n
+
+    # Row index to be used for the new node.
+    z = x
+
+    # Update data structures.
+    obsolete[y] = True
+    index_to_id[z] = parent
+
+    # Initialize divergence for the new node.
+    u_z = float32(0)
+
+    # Update distances and divergence.
+    for _k in range(D.shape[0]):
+        k = uintp(_k)
+
+        if k == x or k == y:
+            continue
+
+        # Calculate distance from k to the new node.
+        d_kx = D[k, x]
+        d_ky = D[k, y]
+        d_kz = float32(0.5) * (d_kx + d_ky - d_xy)
+        D[z, k] = d_kz
+        D[k, z] = d_kz
+
+        # Subtract out the distances for the nodes that have just been joined and add
+        # in distance for the new node.
+        u_k = U[k] - d_kx - d_ky + d_kz
+        U[k] = u_k
+
+        # Accumulate divergence for the new node.
+        u_z += d_kz
+
+    # Assign divergence for the new node.
+    U[z] = u_z
+
+    return Q, J, z
 
 
 @doc(
@@ -93,11 +182,18 @@ def heuristic_nj(
     # Keep track of which rows correspond to nodes that have been clustered.
     obsolete: NDArray[np.bool_] = np.zeros(shape=n_original, dtype=np.bool_)
 
-    # Initialise per-row data structures for the heuristic algorithm.
-    Q, J = heuristic_init(D=D_copy, U=U)
+    # Initialise the heuristic algorithm.
+    Q, J, z = heuristic_init(
+        D=D_copy,
+        U=U,
+        Z=Z,
+        obsolete=obsolete,
+        index_to_id=index_to_id,
+        disallow_negative_distances=disallow_negative_distances,
+    )
 
     # Support wrapping the iterator in a progress bar.
-    iterator = range(n_internal)
+    iterator = range(1, n_internal)
     if progress:
         iterator = progress(iterator, **progress_options)
 
@@ -110,6 +206,7 @@ def heuristic_nj(
             U=U,
             Q=Q,
             J=J,
+            z=z,
             index_to_id=index_to_id,
             obsolete=obsolete,
             Z=Z,
@@ -187,6 +284,7 @@ def heuristic_update(
         float32[:],  # U
         float32[:],  # Q
         uintp[:],  # J
+        uintp,  # z
         uintp[:],  # index_to_id
         bool_[:],  # obsolete
         float32[:, :],  # Z
@@ -204,6 +302,7 @@ def heuristic_iteration(
     U: NDArray[np.float32],
     Q,
     J,
+    z,
     index_to_id: NDArray[np.uintp],
     obsolete: NDArray[np.bool_],
     Z: NDArray[np.float32],
@@ -218,38 +317,37 @@ def heuristic_iteration(
 
     if n_remaining > 2:
         # Search for the closest pair of nodes to join.
-        i_min, j_min = heuristic_search(
+        x, y, d_xy = heuristic_search(
             D=D, U=U, obsolete=obsolete, n_remaining=n_remaining
         )
 
         # Calculate distances to the new internal node.
-        d_ij = D[i_min, j_min]
-        d_i = 0.5 * (d_ij + (1 / (n_remaining - 2)) * (U[i_min] - U[j_min]))
-        d_j = 0.5 * (d_ij + (1 / (n_remaining - 2)) * (U[j_min] - U[i_min]))
+        d_xz = 0.5 * (d_xy + (1 / (n_remaining - 2)) * (U[x] - U[y]))
+        d_yz = 0.5 * (d_xy + (1 / (n_remaining - 2)) * (U[y] - U[x]))
 
     else:
         # Termination. Join the two remaining nodes, placing the final node at the
         # midpoint.
         _i_min, _j_min = np.nonzero(~obsolete)[0]
-        i_min = uintp(_i_min)
-        j_min = uintp(_j_min)
-        d_ij = D[i_min, j_min]
-        d_i = d_ij / 2
-        d_j = d_ij / 2
+        x = uintp(_i_min)
+        y = uintp(_j_min)
+        d_xy = D[x, y]
+        d_xz = d_xy / 2
+        d_yz = d_xy / 2
 
     # Handle possibility of negative distances.
     if disallow_negative_distances:
-        d_i = max(float32(0), d_i)
-        d_j = max(float32(0), d_j)
+        d_xz = max(float32(0), d_xz)
+        d_yz = max(float32(0), d_yz)
 
     # Get IDs for the nodes to be joined.
-    child_i = index_to_id[i_min]
-    child_j = index_to_id[j_min]
+    child_i = index_to_id[x]
+    child_j = index_to_id[y]
 
     # Sanity checks.
-    assert i_min >= 0
-    assert j_min >= 0
-    assert i_min != j_min
+    assert x >= 0
+    assert y >= 0
+    assert x != y
     assert child_i >= 0
     assert child_j >= 0
     assert child_i != child_j
@@ -257,8 +355,8 @@ def heuristic_iteration(
     # Stabilise ordering for easier comparisons.
     if child_i > child_j:
         child_i, child_j = child_j, child_i
-        i_min, j_min = j_min, i_min
-        d_i, d_j = d_j, d_i
+        x, y = y, x
+        d_xz, d_yz = d_yz, d_xz
 
     # Get number of leaves.
     if child_i < n_original:
@@ -273,8 +371,8 @@ def heuristic_iteration(
     # Store new node data.
     Z[iteration, 0] = child_i
     Z[iteration, 1] = child_j
-    Z[iteration, 2] = d_i
-    Z[iteration, 3] = d_j
+    Z[iteration, 2] = d_xz
+    Z[iteration, 3] = d_yz
     Z[iteration, 4] = leaves_i + leaves_j
 
     if n_remaining > 2:
@@ -285,9 +383,9 @@ def heuristic_iteration(
             index_to_id=index_to_id,
             obsolete=obsolete,
             parent=parent,
-            i_min=i_min,
-            j_min=j_min,
-            d_ij=d_ij,
+            i_min=x,
+            j_min=y,
+            d_ij=d_xy,
         )
 
 
