@@ -6,21 +6,63 @@ from . import params
 from ._util import NOGIL, FASTMATH, ERROR_MODEL, BOUNDSCHECK, FLOAT32_INF, UINTP_MAX
 
 
+@njit(
+    (
+        float32[:, :],  # D
+        float32[:],  # U
+    ),
+    nogil=NOGIL,
+    fastmath=FASTMATH,
+    error_model=ERROR_MODEL,
+    boundscheck=BOUNDSCHECK,
+)
+def heuristic_init(
+    D,
+    U,
+):
+    n = uintp(D.shape[0])
+    q_min = FLOAT32_INF
+    i_min = UINTP_MAX
+    j_min = UINTP_MAX
+    coefficient = float32(n - 2)
+    Q = np.empty(shape=n, dtype=float32)
+    J = np.empty(shape=n, dtype=uintp)
+    for _i in range(n):
+        i = uintp(_i)
+        row_q_min = FLOAT32_INF
+        row_j_min = UINTP_MAX
+        u_i = U[i]
+        for _j in range(i):
+            j = uintp(_j)
+            u_j = U[j]
+            d = D[i, j]
+            q = coefficient * d - u_i - u_j
+            if q < row_q_min:
+                row_q_min = q
+                row_j_min = j
+            if q < q_min:
+                q_min = q
+                i_min = j
+                j_min = j
+        Q[i] = row_q_min
+        J[i] = row_j_min
+    return Q, J, i_min, j_min
+
+
 @doc(
-    summary="""Perform neighbour-joining using the canonical algorithm.""",
+    summary="""@@TODO.""",
     extended_summary="""
-        This implementation performs a full scan of the distance matrix in each
-        iteration of the algorithm to find the pair of nearest neighbours. It is
-        therefore slower and scales with the cube of the number of original observations
-        in the distance matrix, i.e., O(n^3).
+        @@TODO
     """,
 )
-def canonical_nj(
+def heuristic_nj(
     D: params.D,
     disallow_negative_distances: params.disallow_negative_distances = True,
     progress: params.progress = None,
     progress_options: params.progress_options = {},
 ) -> params.Z:
+    """TODO"""
+
     # Make a copy of distance matrix D because we will overwrite it during the
     # algorithm.
     D_copy: NDArray[np.float32] = np.array(D, copy=True, order="C", dtype=np.float32)
@@ -51,6 +93,9 @@ def canonical_nj(
     # Keep track of which rows correspond to nodes that have been clustered.
     obsolete: NDArray[np.bool_] = np.zeros(shape=n_original, dtype=np.bool_)
 
+    # Initialise per-row data structures for the heuristic algorithm.
+    Q, J = heuristic_init(D=D_copy, U=U)
+
     # Support wrapping the iterator in a progress bar.
     iterator = range(n_internal)
     if progress:
@@ -59,10 +104,12 @@ def canonical_nj(
     # Begin iterating.
     for iteration in iterator:
         # Perform one iteration of the neighbour-joining algorithm.
-        canonical_iteration(
+        heuristic_iteration(
             iteration=iteration,
             D=D_copy,
             U=U,
+            Q=Q,
+            J=J,
             index_to_id=index_to_id,
             obsolete=obsolete,
             Z=Z,
@@ -71,49 +118,6 @@ def canonical_nj(
         )
 
     return Z
-
-
-@njit(
-    (
-        float32[:, :],  # D
-        float32[:],  # U
-        bool_[:],  # obsolete
-        uintp,  # n_remaining
-    ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
-)
-def canonical_search(
-    D: NDArray[np.float32],
-    U: NDArray[np.float32],
-    obsolete: NDArray[np.bool_],
-    n_remaining: np.uintp,
-) -> tuple[np.uintp, np.uintp]:
-    # Search for the closest pair of neighbouring nodes to join.
-    q_min = FLOAT32_INF
-    i_min = UINTP_MAX
-    j_min = UINTP_MAX
-    coefficient = float32(n_remaining - 2)
-    m = D.shape[0]
-    for _i in range(m):
-        i = uintp(_i)
-        if obsolete[i]:
-            continue
-        u_i = U[i]
-        for _j in range(i):
-            j = uintp(_j)
-            if obsolete[j]:
-                continue
-            u_j = U[j]
-            d = D[i, j]
-            q = coefficient * d - u_i - u_j
-            if q < q_min:
-                q_min = q
-                i_min = i
-                j_min = j
-    return i_min, j_min
 
 
 @njit(
@@ -132,7 +136,7 @@ def canonical_search(
     error_model=ERROR_MODEL,
     boundscheck=BOUNDSCHECK,
 )
-def canonical_update(
+def heuristic_update(
     D: NDArray[np.float32],
     U: NDArray[np.float32],
     index_to_id: NDArray[np.uintp],
@@ -181,6 +185,8 @@ def canonical_update(
         uintp,  # iteration
         float32[:, :],  # D
         float32[:],  # U
+        float32[:],  # Q
+        uintp[:],  # J
         uintp[:],  # index_to_id
         bool_[:],  # obsolete
         float32[:, :],  # Z
@@ -192,10 +198,12 @@ def canonical_update(
     error_model=ERROR_MODEL,
     boundscheck=BOUNDSCHECK,
 )
-def canonical_iteration(
+def heuristic_iteration(
     iteration: np.uintp,
     D: NDArray[np.float32],
     U: NDArray[np.float32],
+    Q,
+    J,
     index_to_id: NDArray[np.uintp],
     obsolete: NDArray[np.bool_],
     Z: NDArray[np.float32],
@@ -210,7 +218,7 @@ def canonical_iteration(
 
     if n_remaining > 2:
         # Search for the closest pair of nodes to join.
-        i_min, j_min = canonical_search(
+        i_min, j_min = heuristic_search(
             D=D, U=U, obsolete=obsolete, n_remaining=n_remaining
         )
 
@@ -271,7 +279,7 @@ def canonical_iteration(
 
     if n_remaining > 2:
         # Update data structures.
-        canonical_update(
+        heuristic_update(
             D=D,
             U=U,
             index_to_id=index_to_id,
@@ -281,3 +289,7 @@ def canonical_iteration(
             j_min=j_min,
             d_ij=d_ij,
         )
+
+
+def heuristic_search():
+    pass
