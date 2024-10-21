@@ -23,7 +23,6 @@ def heuristic_nj(
     progress_options: params.progress_options = {},
 ) -> params.Z:
     """TODO"""
-    print("hello")
 
     # Make a copy of distance matrix D because we will overwrite it during the
     # algorithm.
