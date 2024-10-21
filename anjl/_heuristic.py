@@ -1,10 +1,10 @@
 import numpy as np
 from numpy.typing import NDArray
 
-# from numba import njit, uintp, float32, bool_
+from numba import njit, uintp, float32, bool_
 from numpydoc_decorator import doc
 from . import params
-from ._util import FLOAT32_INF, UINTP_MAX
+from ._util import NOGIL, FASTMATH, ERROR_MODEL, BOUNDSCHECK, FLOAT32_INF, UINTP_MAX
 
 # Clausen 2023
 # https://doi.org/10.1093/bioinformatics/btac774
@@ -63,9 +63,6 @@ def heuristic_nj(
         index_to_id=index_to_id,
         disallow_negative_distances=disallow_negative_distances,
     )
-    # print("init done")
-    # print("z", z)
-    # print("J", J)
 
     # Support wrapping the iterator in a progress bar.
     iterator = range(1, n_internal)
@@ -74,10 +71,6 @@ def heuristic_nj(
 
     # Begin iterating.
     for iteration in iterator:
-        # print()
-        # print("-" * 79)
-        # print("iteration", iteration, "z", z)
-
         # Perform one iteration of the neighbour-joining algorithm.
         z = heuristic_iteration(
             iteration=np.uintp(iteration),
@@ -95,20 +88,20 @@ def heuristic_nj(
     return Z
 
 
-# @njit(
-#     (
-#         float32[:, :],  # D
-#         float32[:],  # S
-#         float32[:, :],  # Z
-#         bool_[:],  # obsolete
-#         uintp[:],  # index_to_id
-#         bool_,  # disallow_negative_distances
-#     ),
-#     nogil=NOGIL,
-#     fastmath=FASTMATH,
-#     error_model=ERROR_MODEL,
-#     boundscheck=BOUNDSCHECK,
-# )
+@njit(
+    (
+        float32[:, :],  # D
+        float32[:],  # S
+        float32[:, :],  # Z
+        bool_[:],  # obsolete
+        uintp[:],  # index_to_id
+        bool_,  # disallow_negative_distances
+    ),
+    nogil=NOGIL,
+    fastmath=FASTMATH,
+    error_model=ERROR_MODEL,
+    boundscheck=BOUNDSCHECK,
+)
 def heuristic_init(
     D,
     S,
@@ -201,7 +194,6 @@ def heuristic_init(
 
     # Row index to be used for the new node.
     z = x
-    # print("parent", n, "x", x, "y", y, "z", z)
 
     # Update data structures.
     obsolete[y] = True
@@ -238,6 +230,20 @@ def heuristic_init(
     return J, z
 
 
+@njit(
+    (
+        float32[:, :],  # D
+        float32[:],  # S
+        uintp[:],  # J
+        bool_[:],  # obsolete
+        uintp,  # i
+        float32,  # coefficient
+    ),
+    nogil=NOGIL,
+    fastmath=FASTMATH,
+    error_model=ERROR_MODEL,
+    boundscheck=BOUNDSCHECK,
+)
 def search_row(D, S, J, obsolete, i, coefficient):
     q_ij = FLOAT32_INF  # row minimum q
     d_ij = FLOAT32_INF  # distance at row minimum q
@@ -261,20 +267,20 @@ def search_row(D, S, J, obsolete, i, coefficient):
     return j, q_ij, d_ij
 
 
-# @njit(
-#     (
-#         float32[:, :],  # D
-#         float32[:],  # S
-#         uintp[:],  # J
-#         uintp,  # z
-#         bool_[:],  # obsolete
-#         uintp,  # n_remaining
-#     ),
-#     nogil=NOGIL,
-#     fastmath=FASTMATH,
-#     error_model=ERROR_MODEL,
-#     boundscheck=BOUNDSCHECK,
-# )
+@njit(
+    (
+        float32[:, :],  # D
+        float32[:],  # S
+        uintp[:],  # J
+        uintp,  # z
+        bool_[:],  # obsolete
+        uintp,  # n_remaining
+    ),
+    nogil=NOGIL,
+    fastmath=FASTMATH,
+    error_model=ERROR_MODEL,
+    boundscheck=BOUNDSCHECK,
+)
 def heuristic_search(
     D: NDArray[np.float32],
     S: NDArray[np.float32],
@@ -325,6 +331,17 @@ def heuristic_search(
             d_ij = D[i, j]
             q_ij = coefficient * d_ij - s_i - s_j
 
+            # Check new node, maybe update best match. This doesn't seem to be
+            # necessary, results are exactly the same without it.
+            # s_z = S[z]
+            # d_iz = D[i, z]
+            # q_iz = coefficient * d_iz - s_i - s_z
+            # if q_iz < q_ij:
+            #     J[i] = z
+            #     j = z
+            #     d_ij = d_iz
+            #     q_ij = q_iz
+
         if q_ij < q_xy:
             # Found new global minimum.
             q_xy = q_ij
@@ -335,22 +352,22 @@ def heuristic_search(
     return x, y, d_xy
 
 
-# @njit(
-#     (
-#         float32[:, :],  # D
-#         float32[:],  # S
-#         uintp[:],  # index_to_id
-#         bool_[:],  # obsolete
-#         uintp,  # parent
-#         uintp,  # x
-#         uintp,  # y
-#         float32,  # d_xy
-#     ),
-#     nogil=NOGIL,
-#     fastmath=FASTMATH,
-#     error_model=ERROR_MODEL,
-#     boundscheck=BOUNDSCHECK,
-# )
+@njit(
+    (
+        float32[:, :],  # D
+        float32[:],  # S
+        uintp[:],  # index_to_id
+        bool_[:],  # obsolete
+        uintp,  # parent
+        uintp,  # x
+        uintp,  # y
+        float32,  # d_xy
+    ),
+    nogil=NOGIL,
+    fastmath=FASTMATH,
+    error_model=ERROR_MODEL,
+    boundscheck=BOUNDSCHECK,
+)
 def heuristic_update(
     D: NDArray[np.float32],
     S: NDArray[np.float32],
@@ -382,7 +399,6 @@ def heuristic_update(
             continue
 
         # Calculate distance from k to the new node.
-        # TODO Only use lower triange of the distance matrix.
         d_kx = D[k, x]
         d_ky = D[k, y]
         d_kz = np.float32(0.5) * (d_kx + d_ky - d_xy)
@@ -403,24 +419,24 @@ def heuristic_update(
     return z
 
 
-# @njit(
-#     (
-#         uintp,  # iteration
-#         float32[:, :],  # D
-#         float32[:],  # S
-#         uintp[:],  # J
-#         uintp,  # z
-#         uintp[:],  # index_to_id
-#         bool_[:],  # obsolete
-#         float32[:, :],  # Z
-#         uintp,  # n_original
-#         bool_,  # disallow_negative_distances
-#     ),
-#     nogil=NOGIL,
-#     fastmath=FASTMATH,
-#     error_model=ERROR_MODEL,
-#     boundscheck=BOUNDSCHECK,
-# )
+@njit(
+    (
+        uintp,  # iteration
+        float32[:, :],  # D
+        float32[:],  # S
+        uintp[:],  # J
+        uintp,  # previous_z
+        uintp[:],  # index_to_id
+        bool_[:],  # obsolete
+        float32[:, :],  # Z
+        uintp,  # n_original
+        bool_,  # disallow_negative_distances
+    ),
+    nogil=NOGIL,
+    fastmath=FASTMATH,
+    error_model=ERROR_MODEL,
+    boundscheck=BOUNDSCHECK,
+)
 def heuristic_iteration(
     iteration: np.uintp,
     D: NDArray[np.float32],
