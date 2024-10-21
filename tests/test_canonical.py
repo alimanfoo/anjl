@@ -97,3 +97,9 @@ def test_wikipedia_example():
 
     # Further iterations cannot be tested because there are
     # different ways the remaining nodes could be joined.
+
+
+def test_mosquitoes():
+    D, _ = anjl.data.mosquitoes()
+    Z = anjl.canonical_nj(D)
+    validate_nj_result(Z, D)

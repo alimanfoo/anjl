@@ -40,7 +40,7 @@ def test_example_1():
     # https://www.tenderisthebyte.com/blog/2022/08/31/neighbor-joining-trees/
 
     D, _ = anjl.data.example_1()
-    Z = anjl.rapid_nj(D)
+    Z = anjl.heuristic_nj(D)
     validate_nj_result(Z, D)
 
     # First iteration.
@@ -63,7 +63,7 @@ def test_wikipedia_example():
     # https://en.wikipedia.org/wiki/Neighbor_joining#Example
 
     D, _ = anjl.data.wikipedia_example()
-    Z = anjl.rapid_nj(D)
+    Z = anjl.heuristic_nj(D)
     validate_nj_result(Z, D)
 
     # First iteration.
@@ -83,5 +83,5 @@ def test_wikipedia_example():
 
 def test_mosquitoes():
     D, _ = anjl.data.mosquitoes()
-    Z = anjl.rapid_nj(D)
+    Z = anjl.heuristic_nj(D)
     validate_nj_result(Z, D)
