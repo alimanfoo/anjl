@@ -74,9 +74,9 @@ def heuristic_nj(
 
     # Begin iterating.
     for iteration in iterator:
-        print()
-        print("-" * 79)
-        print("iteration", iteration, "z", z)
+        # print()
+        # print("-" * 79)
+        # print("iteration", iteration, "z", z)
 
         # Perform one iteration of the neighbour-joining algorithm.
         z = heuristic_iteration(
@@ -142,15 +142,18 @@ def heuristic_init(
     # within each row.
     J = np.empty(shape=n, dtype=np.uintp)
 
-    # Scan the lower triangle of the distance matrix.
+    # Scan the distance matrix.
     for _i in range(n):
         i = np.uintp(_i)  # row index
         j = UINTP_MAX  # column index of row q minimum
         q_ij = FLOAT32_INF  # row q minimum
         d_ij = FLOAT32_INF  # distance of row q minimum
         s_i = S[i]
-        for _k in range(i):
+        # for _k in range(i):
+        for _k in range(n):
             k = np.uintp(_k)
+            if i == k:
+                continue
             s_k = S[k]
             d = D[i, k]
             q = coefficient * d - s_i - s_k
@@ -240,8 +243,11 @@ def search_row(D, S, J, obsolete, i, coefficient, update=True):
     d_ij = FLOAT32_INF  # distance at row minimum q
     j = UINTP_MAX  # column index at row minimum q
     s_i = S[i]  # divergence for node at row i
-    for _k in range(i):
+    # for _k in range(i):
+    for _k in range(D.shape[1]):
         k = np.uintp(_k)
+        if i == k:
+            continue
         if obsolete[k]:
             continue
         s_k = S[k]
@@ -320,7 +326,7 @@ def heuristic_search(
             # print("Edge case, no active nodes to compare at all in this row.")
             pass
 
-        elif obsolete[j]:
+        elif obsolete[j] or j == z:
             # print(f"Previous best match j={j} obsolete, rescan row i={i}.")
             j, q_ij, d_ij = search_row(
                 D=D, S=S, J=J, obsolete=obsolete, i=i, coefficient=coefficient
@@ -332,19 +338,6 @@ def heuristic_search(
             s_j = S[j]
             d_ij = D[i, j]
             q_ij = coefficient * d_ij - s_i - s_j
-            # TODO remove check
-            __j, __q_ij, __d_ij = search_row(
-                D=D,
-                S=S,
-                J=J,
-                obsolete=obsolete,
-                i=i,
-                coefficient=coefficient,
-                update=False,
-            )
-            if __j != j:
-                print("assumption violated for row i < z")
-                print("i", i, "j", j, "q_ij", q_ij, "__j", __j, "__q_ij", __q_ij)
 
         if q_ij < q_xy:
             # print(
@@ -410,20 +403,6 @@ def heuristic_search(
                 q_ij = q_iz
                 d_ij = d_iz
                 J[i] = j
-
-            # TODO remove check
-            __j, __q_ij, __d_ij = search_row(
-                D=D,
-                S=S,
-                J=J,
-                obsolete=obsolete,
-                i=i,
-                coefficient=coefficient,
-                update=False,
-            )
-            if __j != j:
-                print("assumption violated for row i > z")
-                print("i", i, "j", j, "q_ij", q_ij, "__j", __j, "__q_ij", __q_ij)
 
         if q_ij < q_xy:
             # print(
@@ -546,10 +525,7 @@ def heuristic_iteration(
         x, y, d_xy = heuristic_search(
             D=D, S=S, J=J, z=previous_z, obsolete=obsolete, n_remaining=n_remaining
         )
-        if x >= D.shape[0]:
-            print(x, y, d_xy, iteration, previous_z)
-            print("J", J)
-        assert x < D.shape[0], (x, y, d_xy, iteration, previous_z)
+        assert x < D.shape[0], x
         assert y < D.shape[0], y
         assert not np.isinf(d_xy), d_xy
 
