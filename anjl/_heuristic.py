@@ -388,7 +388,7 @@ def heuristic_search(
             # print("Edge case, no active nodes to compare at all in this row.")
             pass
 
-        elif obsolete[j]:
+        elif obsolete[j] or j == z:
             # print(f"Previous best match j={j} obsolete, rescan row i={i}.")
             j, q_ij, d_ij = search_row(
                 D=D, S=S, J=J, obsolete=obsolete, i=i, coefficient=coefficient
