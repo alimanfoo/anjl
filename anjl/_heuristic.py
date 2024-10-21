@@ -74,9 +74,9 @@ def heuristic_nj(
 
     # Begin iterating.
     for iteration in iterator:
-        # print()
-        # print("-" * 79)
-        # print("iteration", iteration, "z", z)
+        print()
+        print("-" * 79)
+        print("iteration", iteration, "z", z)
 
         # Perform one iteration of the neighbour-joining algorithm.
         z = heuristic_iteration(
@@ -235,7 +235,7 @@ def heuristic_init(
     return J, z
 
 
-def search_row(D, S, J, obsolete, i, coefficient):
+def search_row(D, S, J, obsolete, i, coefficient, update=True):
     q_ij = FLOAT32_INF  # row minimum q
     d_ij = FLOAT32_INF  # distance at row minimum q
     j = UINTP_MAX  # column index at row minimum q
@@ -252,7 +252,8 @@ def search_row(D, S, J, obsolete, i, coefficient):
             q_ij = q
             d_ij = d
             j = k
-    J[i] = j
+    if update:
+        J[i] = j
     return j, q_ij, d_ij
 
 
@@ -331,6 +332,19 @@ def heuristic_search(
             s_j = S[j]
             d_ij = D[i, j]
             q_ij = coefficient * d_ij - s_i - s_j
+            # TODO remove check
+            __j, __q_ij, __d_ij = search_row(
+                D=D,
+                S=S,
+                J=J,
+                obsolete=obsolete,
+                i=i,
+                coefficient=coefficient,
+                update=False,
+            )
+            if __j != j:
+                print("assumption violated for row i < z")
+                print("i", i, "j", j, "q_ij", q_ij, "__j", __j, "__q_ij", __q_ij)
 
         if q_ij < q_xy:
             # print(
@@ -396,6 +410,20 @@ def heuristic_search(
                 q_ij = q_iz
                 d_ij = d_iz
                 J[i] = j
+
+            # TODO remove check
+            __j, __q_ij, __d_ij = search_row(
+                D=D,
+                S=S,
+                J=J,
+                obsolete=obsolete,
+                i=i,
+                coefficient=coefficient,
+                update=False,
+            )
+            if __j != j:
+                print("assumption violated for row i > z")
+                print("i", i, "j", j, "q_ij", q_ij, "__j", __j, "__q_ij", __q_ij)
 
         if q_ij < q_xy:
             # print(
@@ -507,9 +535,6 @@ def heuristic_iteration(
     n_original: np.uintp,
     disallow_negative_distances: bool,
 ):
-    if iteration == 176:
-        print("debug me now!")
-
     # This will be the identifier for the new node to be created in this iteration.
     parent = iteration + n_original
 
