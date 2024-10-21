@@ -331,6 +331,7 @@ def heuristic_search(
             j, q_ij, d_ij = search_row(
                 D=D, S=S, J=J, obsolete=obsolete, i=i, coefficient=coefficient
             )
+            assert j == z, (i, j, z)
 
         else:
             # print(f"Previous best match still available at row i={i}, col j={j}.")
@@ -386,6 +387,7 @@ def heuristic_search(
             j, q_ij, d_ij = search_row(
                 D=D, S=S, J=J, obsolete=obsolete, i=i, coefficient=coefficient
             )
+            assert j == z, (i, j, z)
 
         else:
             # print(f"Previous best match still available at row i={i}, col j={j}.")
