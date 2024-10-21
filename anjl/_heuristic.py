@@ -322,16 +322,11 @@ def heuristic_search(
         j = J[i]  # column index
         # print("Search", i, j)
 
-        if j == UINTP_MAX:
-            # print("Edge case, no active nodes to compare at all in this row.")
-            pass
-
-        elif obsolete[j] or j == z:
+        if obsolete[j] or j == z:
             # print(f"Previous best match j={j} obsolete, rescan row i={i}.")
             j, q_ij, d_ij = search_row(
                 D=D, S=S, J=J, obsolete=obsolete, i=i, coefficient=coefficient
             )
-            assert j == z, (i, j, z)
 
         else:
             # print(f"Previous best match still available at row i={i}, col j={j}.")
@@ -378,16 +373,11 @@ def heuristic_search(
         j = J[i]
         # print("Search", i, j)
 
-        if j == UINTP_MAX:
-            # print("Edge case, no active nodes to compare at all in this row.")
-            pass
-
-        elif obsolete[j] or j == z:
+        if obsolete[j] or j == z:
             # print(f"Previous best match j={j} obsolete, rescan row i={i}.")
             j, q_ij, d_ij = search_row(
                 D=D, S=S, J=J, obsolete=obsolete, i=i, coefficient=coefficient
             )
-            assert j == z, (i, j, z)
 
         else:
             # print(f"Previous best match still available at row i={i}, col j={j}.")
@@ -397,14 +387,14 @@ def heuristic_search(
             q_ij = coefficient * d_ij - s_i - s_j
 
             # print(f"Compare new node at row i={i}, col z={z}")
-            d_iz = D[i, z]
-            s_z = S[z]
-            q_iz = coefficient * d_iz - s_i - s_z
-            if q_iz < q_ij:
-                j = z
-                q_ij = q_iz
-                d_ij = d_iz
-                J[i] = j
+            # d_iz = D[i, z]
+            # s_z = S[z]
+            # q_iz = coefficient * d_iz - s_i - s_z
+            # if q_iz < q_ij:
+            #     j = z
+            #     q_ij = q_iz
+            #     d_ij = d_iz
+            #     J[i] = j
 
         if q_ij < q_xy:
             # print(
