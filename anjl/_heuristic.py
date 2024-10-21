@@ -6,6 +6,9 @@ from numpydoc_decorator import doc
 from . import params
 from ._util import FLOAT32_INF, UINTP_MAX
 
+# Clausen 2023
+# https://doi.org/10.1093/bioinformatics/btac774
+
 
 @doc(
     summary="""@@TODO.""",
@@ -46,7 +49,7 @@ def heuristic_nj(
     Z: NDArray[np.float32] = np.zeros(shape=(n_internal, 5), dtype=np.float32)
 
     # Initialize the "divergence" array, containing sum of distances to other nodes.
-    U: NDArray[np.float32] = np.sum(D_copy, axis=1)
+    S: NDArray[np.float32] = np.sum(D_copy, axis=1)
 
     # Keep track of which rows correspond to nodes that have been clustered.
     obsolete: NDArray[np.bool_] = np.zeros(shape=n_original, dtype=np.bool_)
@@ -54,7 +57,7 @@ def heuristic_nj(
     # Initialise the heuristic algorithm.
     J, z = heuristic_init(
         D=D_copy,
-        U=U,
+        S=S,
         Z=Z,
         obsolete=obsolete,
         index_to_id=index_to_id,
@@ -71,19 +74,21 @@ def heuristic_nj(
 
     # Begin iterating.
     for iteration in iterator:
+        print()
+        print("-" * 79)
         print("iteration", iteration, "z", z)
 
         # Perform one iteration of the neighbour-joining algorithm.
         z = heuristic_iteration(
-            iteration=iteration,
+            iteration=np.uintp(iteration),
             D=D_copy,
-            U=U,
+            S=S,
             J=J,
             previous_z=z,
             index_to_id=index_to_id,
             obsolete=obsolete,
             Z=Z,
-            n_original=n_original,
+            n_original=np.uintp(n_original),
             disallow_negative_distances=disallow_negative_distances,
         )
 
@@ -93,7 +98,7 @@ def heuristic_nj(
 # @njit(
 #     (
 #         float32[:, :],  # D
-#         float32[:],  # U
+#         float32[:],  # S
 #         float32[:, :],  # Z
 #         bool_[:],  # obsolete
 #         uintp[:],  # index_to_id
@@ -106,7 +111,7 @@ def heuristic_nj(
 # )
 def heuristic_init(
     D,
-    U,
+    S,
     Z,
     obsolete,
     index_to_id,
@@ -143,12 +148,12 @@ def heuristic_init(
         j = UINTP_MAX  # column index of row q minimum
         q_ij = FLOAT32_INF  # row q minimum
         d_ij = FLOAT32_INF  # distance of row q minimum
-        u_i = U[i]
+        s_i = S[i]
         for _k in range(i):
             k = np.uintp(_k)
-            u_k = U[k]
+            s_k = S[k]
             d = D[i, k]
-            q = coefficient * d - u_i - u_k
+            q = coefficient * d - s_i - s_k
             if q < q_ij:
                 # Found new minimum within this row.
                 q_ij = q
@@ -168,9 +173,13 @@ def heuristic_init(
     assert y < n
     assert x != y
 
+    # Stabilise ordering for easier comparisons.
+    if x > y:
+        x, y = y, x
+
     # Calculate distances to the new internal node.
-    d_xz = 0.5 * (d_xy + (1 / (n - 2)) * (U[x] - U[y]))
-    d_yz = 0.5 * (d_xy + (1 / (n - 2)) * (U[y] - U[x]))
+    d_xz = 0.5 * (d_xy + (1 / (n - 2)) * (S[x] - S[y]))
+    d_yz = 0.5 * (d_xy + (1 / (n - 2)) * (S[y] - S[x]))
 
     # Handle possibility of negative distances.
     if disallow_negative_distances:
@@ -189,14 +198,14 @@ def heuristic_init(
 
     # Row index to be used for the new node.
     z = x
-    print("parent", n, "z", z, "x", x, "y", y)
+    print("parent", n, "x", x, "y", y, "z", z)
 
     # Update data structures.
     obsolete[y] = True
     index_to_id[z] = parent
 
     # Initialize divergence for the new node.
-    u_z = np.float32(0)
+    s_z = np.float32(0)
 
     # Update distances and divergence.
     for _k in range(D.shape[0]):
@@ -214,22 +223,43 @@ def heuristic_init(
 
         # Subtract out the distances for the nodes that have just been joined and add
         # in distance for the new node.
-        u_k = U[k] - d_kx - d_ky + d_kz
-        U[k] = u_k
+        s_k = S[k] - d_kx - d_ky + d_kz
+        S[k] = s_k
 
         # Accumulate divergence for the new node.
-        u_z += d_kz
+        s_z += d_kz
 
     # Assign divergence for the new node.
-    U[z] = u_z
+    S[z] = s_z
 
     return J, z
+
+
+def search_row(D, S, J, obsolete, i, coefficient):
+    q_ij = FLOAT32_INF  # row minimum q
+    d_ij = FLOAT32_INF  # distance at row minimum q
+    j = UINTP_MAX  # column index at row minimum q
+    s_i = S[i]  # divergence for node at row i
+    for _k in range(i):
+        k = np.uintp(_k)
+        if obsolete[k]:
+            continue
+        s_k = S[k]
+        d = D[i, k]
+        q = coefficient * d - s_i - s_k
+        if q < q_ij:
+            # Found new row minimum.
+            q_ij = q
+            d_ij = d
+            j = k
+    J[i] = j
+    return j, q_ij, d_ij
 
 
 # @njit(
 #     (
 #         float32[:, :],  # D
-#         float32[:],  # U
+#         float32[:],  # S
 #         uintp[:],  # J
 #         uintp,  # z
 #         bool_[:],  # obsolete
@@ -242,7 +272,7 @@ def heuristic_init(
 # )
 def heuristic_search(
     D: NDArray[np.float32],
-    U: NDArray[np.float32],
+    S: NDArray[np.float32],
     J,
     z,  # index of new node created in previous iteration
     obsolete: NDArray[np.bool_],
@@ -268,116 +298,99 @@ def heuristic_search(
     # Partially compute outside loop.
     coefficient = np.float32(n_remaining - 2)
 
-    print("First search the rows up to the new node z.")
+    print(f"First search the rows up to the new node z={z}.")
     for _i in range(1, z):
         i = np.uintp(_i)  # row index
+        print(f"i={i}")
         if obsolete[i]:
             continue
-        u_i = U[i]
-        # Assume that the best match in the previous iteration still holds.
-        j = J[i]  # column index
-        print("search", i, j)
 
-        if obsolete[j]:
-            print("best match obsolete, rescan row i=", i)
-            q_ij = FLOAT32_INF
-            d_ij = FLOAT32_INF
-            j = UINTP_MAX
-            for _k in range(i):
-                k = np.uintp(_k)
-                if obsolete[k]:
-                    continue
-                u_k = U[k]
-                d = D[i, k]
-                q = coefficient * d - u_i - u_k
-                if q < q_ij:
-                    # Found new row minimum.
-                    q_ij = q
-                    d_ij = d
-                    j = k
-            J[i] = j
+        # Initialise working variables.
+        q_ij = FLOAT32_INF  # row minimum q
+        d_ij = FLOAT32_INF  # distance at row minimum q
+        # j = UINTP_MAX  # column index at row minimum q
+
+        # Access the best match from the previous iteration.
+        j = J[i]  # column index
+        print("Search", i, j)
+
+        if j == UINTP_MAX:
+            print("Edge case, no active nodes to compare at all in this row.")
+            pass
+
+        elif obsolete[j]:
+            print(f"Previous best match j={j} obsolete, rescan row i={i}.")
+            j, q_ij, d_ij = search_row(
+                D=D, S=S, J=J, obsolete=obsolete, i=i, coefficient=coefficient
+            )
 
         else:
-            print("best match still available")
-            u_j = U[j]
+            print(f"Previous best match still available at row i={i}, col j={j}.")
+            s_i = S[i]
+            s_j = S[j]
             d_ij = D[i, j]
-            q_ij = coefficient * d_ij - u_i - u_j
+            q_ij = coefficient * d_ij - s_i - s_j
 
         if q_ij < q_xy:
-            # Found new global minimum.
+            print(
+                f"Found new global minimum at i={i}, j={j}, q_ij={q_ij}, d_ij={d_ij}."
+            )
             q_xy = q_ij
             d_xy = d_ij
             x = i
             y = j
 
-    print("Second, fully search the row corresponding to the new node z.")
+    print(f"Second, fully search the row corresponding to the new node z={z}.")
     i = z
-    j = UINTP_MAX
-    u_i = U[i]
-    d_ij = FLOAT32_INF
-    q_ij = FLOAT32_INF
-    for _k in range(i):
-        k = np.uintp(_k)  # column index
-        if obsolete[k]:
-            continue
-        print("search", i, k)
-        u_k = U[k]
-        d = D[i, k]
-        q = coefficient * d - u_i - u_k
-        if q < q_ij:
-            # Found new minimum within this row.
-            q_ij = q
-            d_ij = d
-            j = k
+    print(f"i={i}")
+    j, q_ij, d_ij = search_row(
+        D=D, S=S, J=J, obsolete=obsolete, i=i, coefficient=coefficient
+    )
     if q_ij < q_xy:
-        # Found new global minimum.
+        print(f"Found new global minimum at i={i}, j={j}, q_ij={q_ij}, d_ij={d_ij}.")
         q_xy = q_ij
         d_xy = d_ij
-        x = z
-        y = k
-    # Store best match for this row.
-    J[i] = j
+        x = i
+        y = j
 
-    print("Third, search all other rows after z.")
+    print(f"Third, search all other rows after z={z}.")
     # Calculating q only for the previous best pair of nodes and for the new node at z.
     for _i in range(z + 1, n):
         i = np.uintp(_i)  # row index
+        print(f"i={i}")
         if obsolete[i]:
             continue
-        u_i = U[i]
 
-        # Try the previous best match.
+        # Initialise working variables.
+        q_ij = FLOAT32_INF  # row minimum q
+        d_ij = FLOAT32_INF  # distance at row minimum q
+        # j = UINTP_MAX  # column index at row minimum q
+
+        # Access the previous best match.
         j = J[i]
-        print("search", i, j)
-        if obsolete[j]:
-            print("best match obsolete, rescan row i=", i)
-            q_ij = FLOAT32_INF
-            d_ij = FLOAT32_INF
-            j = UINTP_MAX
-            for _k in range(i):
-                k = np.uintp(_k)
-                if obsolete[k]:
-                    continue
-                u_k = U[k]
-                d = D[i, k]
-                q = coefficient * d - u_i - u_k
-                if q < q_ij:
-                    # Found new row minimum.
-                    q_ij = q
-                    d_ij = d
-                    j = k
-            J[i] = j
+        print("Search", i, j)
+
+        if j == UINTP_MAX:
+            print("Edge case, no active nodes to compare at all in this row.")
+            pass
+
+        elif obsolete[j]:
+            print(f"Previous best match j={j} obsolete, rescan row i={i}.")
+            j, q_ij, d_ij = search_row(
+                D=D, S=S, J=J, obsolete=obsolete, i=z, coefficient=coefficient
+            )
 
         else:
-            print("best match still available", i, j)
-            u_j = U[j]
+            print(f"Previous best match still available at row i={i}, col j={j}.")
+            s_i = S[i]
+            s_j = S[j]
             d_ij = D[i, j]
-            q_ij = coefficient * d_ij - u_i - u_j
+            q_ij = coefficient * d_ij - s_i - s_j
 
-            print("compare new node", i, z)
+            print(f"Compare new node at row i={i}, col z={z}")
             d_iz = D[i, z]
-            u_z = U[z]
-            q_iz = coefficient * d_iz - u_i - u_z
+            s_z = S[z]
+            q_iz = coefficient * d_iz - s_i - s_z
             if q_iz < q_ij:
                 j = z
                 q_ij = q_iz
@@ -385,7 +398,9 @@ def heuristic_search(
                 J[i] = z
 
         if q_ij < q_xy:
-            # Found new global minimum.
+            print(
+                f"Found new global minimum at i={i}, j={j}, q_ij={q_ij}, d_ij={d_ij}."
+            )
             q_xy = q_ij
             d_xy = d_ij
             x = i
@@ -397,7 +412,7 @@ def heuristic_search(
 # @njit(
 #     (
 #         float32[:, :],  # D
-#         float32[:],  # U
+#         float32[:],  # S
 #         uintp[:],  # index_to_id
 #         bool_[:],  # obsolete
 #         uintp,  # parent
@@ -412,7 +427,7 @@ def heuristic_search(
 # )
 def heuristic_update(
     D: NDArray[np.float32],
-    U: NDArray[np.float32],
+    S: NDArray[np.float32],
     index_to_id: NDArray[np.uintp],
     obsolete: NDArray[np.bool_],
     parent: np.uintp,
@@ -431,7 +446,7 @@ def heuristic_update(
     index_to_id[z] = parent
 
     # Initialize divergence for the new node.
-    u_z = np.float32(0)
+    s_z = np.float32(0)
 
     # Update distances and divergence.
     for _k in range(D.shape[0]):
@@ -450,14 +465,14 @@ def heuristic_update(
 
         # Subtract out the distances for the nodes that have just been joined and add
         # in distance for the new node.
-        u_k = U[k] - d_kx - d_ky + d_kz
-        U[k] = u_k
+        s_k = S[k] - d_kx - d_ky + d_kz
+        S[k] = s_k
 
         # Accumulate divergence for the new node.
-        u_z += d_kz
+        s_z += d_kz
 
     # Assign divergence for the new node.
-    U[z] = u_z
+    S[z] = s_z
 
     return z
 
@@ -466,7 +481,7 @@ def heuristic_update(
 #     (
 #         uintp,  # iteration
 #         float32[:, :],  # D
-#         float32[:],  # U
+#         float32[:],  # S
 #         uintp[:],  # J
 #         uintp,  # z
 #         uintp[:],  # index_to_id
@@ -483,7 +498,7 @@ def heuristic_update(
 def heuristic_iteration(
     iteration: np.uintp,
     D: NDArray[np.float32],
-    U: NDArray[np.float32],
+    S: NDArray[np.float32],
     J,
     previous_z,
     index_to_id: NDArray[np.uintp],
@@ -501,12 +516,12 @@ def heuristic_iteration(
     if n_remaining > 2:
         # Search for the closest pair of nodes to join.
         x, y, d_xy = heuristic_search(
-            D=D, U=U, J=J, z=previous_z, obsolete=obsolete, n_remaining=n_remaining
+            D=D, S=S, J=J, z=previous_z, obsolete=obsolete, n_remaining=n_remaining
         )
 
         # Calculate distances to the new internal node.
-        d_xz = 0.5 * (d_xy + (1 / (n_remaining - 2)) * (U[x] - U[y]))
-        d_yz = 0.5 * (d_xy + (1 / (n_remaining - 2)) * (U[y] - U[x]))
+        d_xz = 0.5 * (d_xy + (1 / (n_remaining - 2)) * (S[x] - S[y]))
+        d_yz = 0.5 * (d_xy + (1 / (n_remaining - 2)) * (S[y] - S[x]))
 
     else:
         # Termination. Join the two remaining nodes, placing the final node at the
@@ -533,6 +548,12 @@ def heuristic_iteration(
     assert x != y
     assert child_x != child_y
 
+    # Stabilise ordering for easier comparisons.
+    if child_x > child_y:
+        child_x, child_y = child_y, child_x
+        x, y = y, x
+        d_xz, d_yz = d_yz, d_xz
+
     # Get number of leaves.
     if child_x < n_original:
         leaves_i = np.float32(1)
@@ -554,7 +575,7 @@ def heuristic_iteration(
         # Update data structures.
         new_z = heuristic_update(
             D=D,
-            U=U,
+            S=S,
             index_to_id=index_to_id,
             obsolete=obsolete,
             parent=parent,
