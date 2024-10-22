@@ -7,12 +7,12 @@ from ._util import NOGIL, FASTMATH, ERROR_MODEL, BOUNDSCHECK, FLOAT32_INF, UINTP
 
 
 @doc(
-    summary="""Perform neighbour-joining using an algorithm based on Simonsen et al. [1]_""",
+    summary="""Perform neighbour-joining using an implementation based on the rapid
+    algorithm of Simonsen et al. [1]_""",
     extended_summary="""
         This implementation builds and maintains a sorted copy of the distance matrix
         and uses heuristics to avoid searching pairs that cannot possibly be neighbours
-        in each iteration. In the worst case it has complexity O(n^3) like the canonical
-        algorithm but in practice it usually scales closer to O(n^2).
+        in each iteration.
     """,
     notes="""
         The ordering of the internal nodes may be different between the canonical and
