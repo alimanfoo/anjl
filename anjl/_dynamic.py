@@ -101,12 +101,12 @@ def dynamic_nj(
     boundscheck=BOUNDSCHECK,
 )
 def dynamic_init(
-    D,
-    S,
-    Z,
-    obsolete,
-    index_to_id,
-    disallow_negative_distances,
+    D: NDArray[np.float32],
+    S: NDArray[np.float32],
+    Z: NDArray[np.float32],
+    obsolete: NDArray[np.bool_],
+    index_to_id: NDArray[np.uintp],
+    disallow_negative_distances: bool,
 ):
     # Here we take a first pass through the distance matrix to locate the first pair
     # of nodes to join, and initialise the data structures needed for the dynamic
@@ -139,8 +139,8 @@ def dynamic_init(
         d_ij = FLOAT32_INF  # distance of row q minimum
         s_i = S[i]
         # TODO try this...
-        # for _k in range(i):
-        for _k in range(n):
+        for _k in range(i):
+            # for _k in range(n):
             k = np.uintp(_k)
             if i == k:
                 continue
@@ -242,21 +242,18 @@ def dynamic_init(
     boundscheck=BOUNDSCHECK,
 )
 def search_row(
-    D,
-    S,
-    Q,
-    obsolete,
-    i,
-    coefficient,
+    D: NDArray[np.float32],
+    S: NDArray[np.float32],
+    Q: NDArray[np.float32],
+    obsolete: NDArray[np.bool_],
+    i: np.uintp,
+    coefficient: np.float32,
 ):
     q_ij = FLOAT32_INF  # row minimum q
     d_ij = FLOAT32_INF  # distance at row minimum q
     j = UINTP_MAX  # column index at row minimum q
     s_i = S[i]  # divergence for node at row i
-    n = D.shape[0]
-    # TODO try this...
-    # for _k in range(i):
-    for _k in range(n):
+    for _k in range(i):
         k = np.uintp(_k)
         if i == k or obsolete[k]:
             continue
@@ -290,10 +287,10 @@ def search_row(
 def dynamic_search(
     D: NDArray[np.float32],
     S: NDArray[np.float32],
-    Q,
-    z,  # index of new node created in previous iteration
+    Q: NDArray[np.float32],
+    z: np.uintp,  # index of new node created in previous iteration
     obsolete: NDArray[np.bool_],
-    n_remaining,
+    n_remaining: np.uintp,
 ):
     # Size of the distance matrix.
     n = np.uintp(D.shape[0])
@@ -320,20 +317,34 @@ def dynamic_search(
     for _i in range(n):
         i = np.uintp(_i)  # row index
 
-        if i == z:
-            continue
-
         if obsolete[i]:
             continue
 
+        if i == z:
+            continue
+
+        if i > z:
+            # Calculate join criterion for the new node, and update Q if necessary.
+            s_i = S[i]
+            s_z = S[z]
+            d_iz = D[i, z]
+            q_iz = coefficient * d_iz - s_i - s_z
+            if q_iz < Q[i]:
+                Q[i] = q_iz
+
         if Q[i] > q_xy:
-            # We can skip this row.
+            # We can skip this row. The previous row optimum join criterion is greater
+            # than the current global optimum, and so there is now way that this row
+            # can contain a better match. This is the core optimisation of the dynamic
+            # algorithm.
             continue
 
         # Fully search the row.
         j, q_ij, d_ij = search_row(
             D=D, S=S, Q=Q, obsolete=obsolete, i=i, coefficient=coefficient
         )
+
+        # Update the row minimum.
         Q[i] = q_ij
 
         if q_ij < q_xy:
@@ -342,8 +353,6 @@ def dynamic_search(
             d_xy = d_ij
             x = i
             y = j
-
-    # TODO update Q via equation 5?
 
     return x, y, d_xy
 
