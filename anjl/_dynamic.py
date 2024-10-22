@@ -339,7 +339,8 @@ def dynamic_search(
             # algorithm.
             continue
 
-        # Fully search the row.
+        # Join criterion could be lower than the current global minimum. Fully search
+        # the row.
         j, q_ij, d_ij = search_row(
             D=D, S=S, Q=Q, obsolete=obsolete, i=i, coefficient=coefficient
         )
