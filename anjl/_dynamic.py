@@ -6,7 +6,7 @@ from numpydoc_decorator import doc
 from . import params
 from ._util import NOGIL, FASTMATH, ERROR_MODEL, BOUNDSCHECK, FLOAT32_INF, UINTP_MAX
 
-# Clausen 2023 "heuristic neighbour-joining"
+# Clausen 2023 "dynamic neighbour-joining"
 # https://doi.org/10.1093/bioinformatics/btac774
 
 
@@ -16,7 +16,7 @@ from ._util import NOGIL, FASTMATH, ERROR_MODEL, BOUNDSCHECK, FLOAT32_INF, UINTP
         @@TODO
     """,
 )
-def heuristic_nj(
+def dynamic_nj(
     D: params.D,
     disallow_negative_distances: params.disallow_negative_distances = True,
     progress: params.progress = None,
@@ -52,8 +52,8 @@ def heuristic_nj(
     # Keep track of which rows correspond to nodes that have been clustered.
     obsolete: NDArray[np.bool_] = np.zeros(shape=n_original, dtype=np.bool_)
 
-    # Initialise the heuristic algorithm.
-    J, z = heuristic_init(
+    # Initialise the dynamic algorithm.
+    Q, z = dynamic_init(
         D=D_copy,
         S=S,
         Z=Z,
@@ -70,11 +70,11 @@ def heuristic_nj(
     # Begin iterating.
     for iteration in iterator:
         # Perform one iteration of the neighbour-joining algorithm.
-        z = heuristic_iteration(
+        z = dynamic_iteration(
             iteration=np.uintp(iteration),
             D=D_copy,
             S=S,
-            J=J,
+            Q=Q,
             previous_z=z,
             index_to_id=index_to_id,
             obsolete=obsolete,
@@ -100,16 +100,16 @@ def heuristic_nj(
     error_model=ERROR_MODEL,
     boundscheck=BOUNDSCHECK,
 )
-def heuristic_init(
-    D: NDArray[np.float32],
-    S: NDArray[np.float32],
-    Z: NDArray[np.float32],
-    obsolete: NDArray[np.bool_],
-    index_to_id: NDArray[np.uintp],
-    disallow_negative_distances: bool,
+def dynamic_init(
+    D,
+    S,
+    Z,
+    obsolete,
+    index_to_id,
+    disallow_negative_distances,
 ):
     # Here we take a first pass through the distance matrix to locate the first pair
-    # of nodes to join, and initialise the data structures needed for the heuristic
+    # of nodes to join, and initialise the data structures needed for the dynamic
     # algorithm.
 
     # Size of the distance matrix.
@@ -128,9 +128,8 @@ def heuristic_init(
     # Partially compute outside loop.
     coefficient = np.float32(n - 2)
 
-    # Index of node where minimum join criterion per node, i.e., nearest neighbour
-    # within each row.
-    J = np.empty(shape=n, dtype=np.uintp)
+    # Minimum join criterion per row.
+    Q = np.empty(shape=n, dtype=np.float32)
 
     # Scan the distance matrix.
     for _i in range(n):
@@ -139,6 +138,7 @@ def heuristic_init(
         q_ij = FLOAT32_INF  # row q minimum
         d_ij = FLOAT32_INF  # distance of row q minimum
         s_i = S[i]
+        # TODO try this...
         # for _k in range(i):
         for _k in range(n):
             k = np.uintp(_k)
@@ -153,7 +153,7 @@ def heuristic_init(
                 d_ij = d
                 j = k
         # Store minimum for this row.
-        J[i] = j
+        Q[i] = q_ij
         if q_ij < q_xy:
             # Found new global minimum.
             q_xy = q_ij
@@ -224,14 +224,14 @@ def heuristic_init(
     # Assign divergence for the new node.
     S[z] = s_z
 
-    return J, z
+    return Q, z
 
 
 @njit(
     (
         float32[:, :],  # D
         float32[:],  # S
-        uintp[:],  # J
+        float32[:],  # Q
         bool_[:],  # obsolete
         uintp,  # i
         float32,  # coefficient
@@ -242,18 +242,20 @@ def heuristic_init(
     boundscheck=BOUNDSCHECK,
 )
 def search_row(
-    D: NDArray[np.float32],
-    S: NDArray[np.float32],
-    J: NDArray[np.uintp],
-    obsolete: NDArray[np.bool_],
-    i: np.uintp,
-    coefficient: np.float32,
+    D,
+    S,
+    Q,
+    obsolete,
+    i,
+    coefficient,
 ):
     q_ij = FLOAT32_INF  # row minimum q
     d_ij = FLOAT32_INF  # distance at row minimum q
     j = UINTP_MAX  # column index at row minimum q
     s_i = S[i]  # divergence for node at row i
     n = D.shape[0]
+    # TODO try this...
+    # for _k in range(i):
     for _k in range(n):
         k = np.uintp(_k)
         if i == k or obsolete[k]:
@@ -267,7 +269,7 @@ def search_row(
             d_ij = d
             j = k
     # Remember best match.
-    J[i] = j
+    Q[i] = q_ij
     return j, q_ij, d_ij
 
 
@@ -275,7 +277,7 @@ def search_row(
     (
         float32[:, :],  # D
         float32[:],  # S
-        uintp[:],  # J
+        float32[:],  # Q
         uintp,  # z
         bool_[:],  # obsolete
         uintp,  # n_remaining
@@ -285,13 +287,13 @@ def search_row(
     error_model=ERROR_MODEL,
     boundscheck=BOUNDSCHECK,
 )
-def heuristic_search(
+def dynamic_search(
     D: NDArray[np.float32],
     S: NDArray[np.float32],
-    J: NDArray[np.uintp],
-    z: np.uintp,  # index of new node created in previous iteration
+    Q,
+    z,  # index of new node created in previous iteration
     obsolete: NDArray[np.bool_],
-    n_remaining: np.uintp,
+    n_remaining,
 ):
     # Size of the distance matrix.
     n = np.uintp(D.shape[0])
@@ -309,42 +311,30 @@ def heuristic_search(
     # Partially compute outside loop.
     coefficient = np.float32(n_remaining - 2)
 
+    # First scan the new row at index z and use as starting point for search.
+    y, q_xy, d_xy = search_row(
+        D=D, S=S, Q=Q, obsolete=obsolete, i=z, coefficient=coefficient
+    )
+    x = z
+
     for _i in range(n):
         i = np.uintp(_i)  # row index
+
+        if i == z:
+            continue
 
         if obsolete[i]:
             continue
 
-        # Initialise working variables.
-        q_ij = FLOAT32_INF  # row minimum q
-        d_ij = FLOAT32_INF  # distance at row minimum q
-        j = UINTP_MAX  # column index at row minimum q
+        if Q[i] > q_xy:
+            # We can skip this row.
+            continue
 
-        # Access the previous best match.
-        previous_j = J[i]  # column index
-
-        if obsolete[previous_j] or previous_j == z or i == z:
-            # Rescan row.
-            j, q_ij, d_ij = search_row(
-                D=D, S=S, J=J, obsolete=obsolete, i=i, coefficient=coefficient
-            )
-
-        else:
-            # Previous best match still available.
-            s_i = S[i]
-            s_j = S[previous_j]
-            d_ij = D[i, previous_j]
-            q_ij = coefficient * d_ij - s_i - s_j
-
-            # This does not seem to make any difference in practice, not necessary?
-            # # Check new node.
-            # s_z = S[z]
-            # d_iz = D[i, z]
-            # q_iz = coefficient * d_iz - s_i - s_z
-            # if q_iz < q_ij:
-            #     q_ij = q_iz
-            #     d_ij = d_iz
-            #     J[i] = z
+        # Fully search the row.
+        j, q_ij, d_ij = search_row(
+            D=D, S=S, Q=Q, obsolete=obsolete, i=i, coefficient=coefficient
+        )
+        Q[i] = q_ij
 
         if q_ij < q_xy:
             # Found new global minimum.
@@ -353,11 +343,7 @@ def heuristic_search(
             x = i
             y = j
 
-    if y == UINTP_MAX:
-        # Fully search the row where Q was minimised.
-        y, q_xy, d_xy = search_row(
-            D=D, S=S, J=J, obsolete=obsolete, i=x, coefficient=coefficient
-        )
+    # TODO update Q via equation 5?
 
     return x, y, d_xy
 
@@ -378,7 +364,7 @@ def heuristic_search(
     error_model=ERROR_MODEL,
     boundscheck=BOUNDSCHECK,
 )
-def heuristic_update(
+def dynamic_update(
     D: NDArray[np.float32],
     S: NDArray[np.float32],
     index_to_id: NDArray[np.uintp],
@@ -434,7 +420,7 @@ def heuristic_update(
         uintp,  # iteration
         float32[:, :],  # D
         float32[:],  # S
-        uintp[:],  # J
+        float32[:],  # Q
         uintp,  # previous_z
         uintp[:],  # index_to_id
         bool_[:],  # obsolete
@@ -447,12 +433,12 @@ def heuristic_update(
     error_model=ERROR_MODEL,
     boundscheck=BOUNDSCHECK,
 )
-def heuristic_iteration(
+def dynamic_iteration(
     iteration: np.uintp,
     D: NDArray[np.float32],
     S: NDArray[np.float32],
-    J: NDArray[np.uintp],
-    previous_z: np.uintp,
+    Q,
+    previous_z,
     index_to_id: NDArray[np.uintp],
     obsolete: NDArray[np.bool_],
     Z: NDArray[np.float32],
@@ -467,8 +453,8 @@ def heuristic_iteration(
 
     if n_remaining > 2:
         # Search for the closest pair of nodes to join.
-        x, y, d_xy = heuristic_search(
-            D=D, S=S, J=J, z=previous_z, obsolete=obsolete, n_remaining=n_remaining
+        x, y, d_xy = dynamic_search(
+            D=D, S=S, Q=Q, z=previous_z, obsolete=obsolete, n_remaining=n_remaining
         )
         assert x < D.shape[0], x
         assert y < D.shape[0], y
@@ -528,7 +514,7 @@ def heuristic_iteration(
 
     if n_remaining > 2:
         # Update data structures.
-        new_z = heuristic_update(
+        new_z = dynamic_update(
             D=D,
             S=S,
             index_to_id=index_to_id,
