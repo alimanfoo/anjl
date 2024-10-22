@@ -7,7 +7,8 @@ from ._util import NOGIL, FASTMATH, ERROR_MODEL, BOUNDSCHECK, FLOAT32_INF, UINTP
 
 
 @doc(
-    summary="""Perform neighbour-joining using an algorithm based on Simonsen et al. [1]_""",
+    summary="""Perform neighbour-joining using an implementation based on the rapid
+    algorithm of Simonsen et al. [1]_""",
     extended_summary="""
         This implementation builds and maintains a sorted copy of the distance matrix
         and uses heuristics to avoid searching pairs that cannot possibly be neighbours
