@@ -6,15 +6,20 @@ from numpydoc_decorator import doc
 from . import params
 from ._util import NOGIL, FASTMATH, ERROR_MODEL, BOUNDSCHECK, FLOAT32_INF, UINTP_MAX
 
-# Clausen 2023 "dynamic neighbour-joining"
-# https://doi.org/10.1093/bioinformatics/btac774
-
 
 @doc(
-    summary="""@@TODO.""",
+    summary="""Perform neighbour-joining using the dynamic algorithm of Clausen [1]_.""",
     extended_summary="""
-        @@TODO
+        This is the fastest and most scalable implementation currently available. The
+        dynamic algorithm exploits the fact that the neighbour-joining criterion Q is
+        gradually weakened with each iteration, and therefore the minimum value of Q
+        found initially within a given row provides a lower bound for all values within
+        the same row in subsequent iterations. This allows many rows of the distance
+        matrix to be skipped in each iteration.
     """,
+    references={
+        "1": "https://doi.org/10.1093/bioinformatics/btac774",
+    },
 )
 def dynamic_nj(
     D: params.D,
@@ -136,11 +141,10 @@ def dynamic_init(
         i = np.uintp(_i)  # row index
         j = UINTP_MAX  # column index of row q minimum
         q_ij = FLOAT32_INF  # row q minimum
-        d_ij = FLOAT32_INF  # distance of row q minimum
-        s_i = S[i]
-        # TODO try this...
+        d_ij = FLOAT32_INF  # distance at row q minimum
+        s_i = S[i]  # divergence for node at row i
+        # Search the lower triangle of the distance matrix.
         for _k in range(i):
-            # for _k in range(n):
             k = np.uintp(_k)
             if i == k:
                 continue
@@ -249,6 +253,7 @@ def search_row(
     i: np.uintp,
     coefficient: np.float32,
 ):
+    # Search a single row of the distance matrix to find the row minimum join criterion.
     q_ij = FLOAT32_INF  # row minimum q
     d_ij = FLOAT32_INF  # distance at row minimum q
     j = UINTP_MAX  # column index at row minimum q
@@ -344,9 +349,6 @@ def dynamic_search(
         j, q_ij, d_ij = search_row(
             D=D, S=S, Q=Q, obsolete=obsolete, i=i, coefficient=coefficient
         )
-
-        # Update the row minimum.
-        Q[i] = q_ij
 
         if q_ij < q_xy:
             # Found new global minimum.
