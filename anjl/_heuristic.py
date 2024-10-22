@@ -112,8 +112,7 @@ def heuristic_init(
 ):
     # Here we take a first pass through the distance matrix to locate the first pair
     # of nodes to join, and initialise the data structures needed for the heuristic
-    # algotithm.
-    # print("init")
+    # algorithm.
 
     # Size of the distance matrix.
     n = np.uintp(D.shape[0])
@@ -314,11 +313,12 @@ def heuristic_search(
         # Initialise working variables.
         q_ij = FLOAT32_INF  # row minimum q
         d_ij = FLOAT32_INF  # distance at row minimum q
+        j = UINTP_MAX  # column index at row minimum q
 
         # Access the previous best match.
-        j = J[i]  # column index
+        previous_j = J[i]  # column index
 
-        if obsolete[j] or j == z or i == z:
+        if obsolete[previous_j] or previous_j == z or i == z:
             # Rescan row.
             j, q_ij, d_ij = search_row(
                 D=D, S=S, J=J, obsolete=obsolete, i=i, coefficient=coefficient
@@ -327,20 +327,19 @@ def heuristic_search(
         else:
             # Previous best match still available.
             s_i = S[i]
-            s_j = S[j]
-            d_ij = D[i, j]
+            s_j = S[previous_j]
+            d_ij = D[i, previous_j]
             q_ij = coefficient * d_ij - s_i - s_j
 
-            # Check new node, maybe update best match. This doesn't seem to be
-            # necessary, results are exactly the same without it.
+            # This does not seem to make any difference in practice, not necessary?
+            # # Check new node.
             # s_z = S[z]
             # d_iz = D[i, z]
             # q_iz = coefficient * d_iz - s_i - s_z
             # if q_iz < q_ij:
-            #     J[i] = z
-            #     j = z
-            #     d_ij = d_iz
             #     q_ij = q_iz
+            #     d_ij = d_iz
+            #     J[i] = z
 
         if q_ij < q_xy:
             # Found new global minimum.
@@ -348,6 +347,12 @@ def heuristic_search(
             d_xy = d_ij
             x = i
             y = j
+
+    if y == UINTP_MAX:
+        # Fully search the row where Q was minimised.
+        y, q_xy, d_xy = search_row(
+            D=D, S=S, J=J, obsolete=obsolete, i=x, coefficient=coefficient
+        )
 
     return x, y, d_xy
 
