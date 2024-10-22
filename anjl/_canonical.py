@@ -21,8 +21,6 @@ def canonical_nj(
     progress: params.progress = None,
     progress_options: params.progress_options = {},
 ) -> params.Z:
-    """TODO"""
-
     # Make a copy of distance matrix D because we will overwrite it during the
     # algorithm.
     D_copy: NDArray[np.float32] = np.array(D, copy=True, order="C", dtype=np.float32)
