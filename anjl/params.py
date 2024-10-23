@@ -42,6 +42,15 @@ progress_options: TypeAlias = Annotated[
     """Any options to be passed into the progress function.""",
 ]
 
+copy: TypeAlias = Annotated[
+    bool,
+    """
+    Passed through to numpy.array(). For numpy version 2.0 and later, if True (default),
+    then the array data is copied. If None, a copy will only be made if necessary. If
+    False it raises a ValueError if a copy cannot be avoided.
+    """,
+]
+
 gc: TypeAlias = Annotated[
     int | None,
     """

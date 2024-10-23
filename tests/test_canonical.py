@@ -1,6 +1,7 @@
 import anjl
 import numpy as np
 from numpy.testing import assert_allclose
+import pytest
 
 
 def validate_nj_result(Z, D):
@@ -99,7 +100,8 @@ def test_wikipedia_example():
     # different ways the remaining nodes could be joined.
 
 
-def test_mosquitoes():
+@pytest.mark.parametrize("copy", [True, False, None])
+def test_mosquitoes(copy):
     D, _ = anjl.data.mosquitoes()
-    Z = anjl.canonical_nj(D)
+    Z = anjl.canonical_nj(D, copy=copy)
     validate_nj_result(Z, D)
