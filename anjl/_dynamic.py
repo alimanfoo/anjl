@@ -146,8 +146,6 @@ def dynamic_init(
         # Search the lower triangle of the distance matrix.
         for _k in range(i):
             k = np.uintp(_k)
-            if i == k:
-                continue
             s_k = S[k]
             d = D[i, k]
             q = coefficient * d - s_i - s_k
