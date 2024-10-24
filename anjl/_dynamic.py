@@ -147,8 +147,6 @@ def dynamic_init(
         # Search the lower triangle of the distance matrix.
         for _k in range(i):
             k = np.uintp(_k)
-            if i == k:
-                continue
             s_k = S[k]
             d = D[i, k]
             q = coefficient * d - s_i - s_k
@@ -261,7 +259,7 @@ def search_row(
     s_i = S[i]  # divergence for node at row i
     for _k in range(i):
         k = np.uintp(_k)
-        if i == k or obsolete[k]:
+        if obsolete[k]:
             continue
         s_k = S[k]
         d = D[i, k]
