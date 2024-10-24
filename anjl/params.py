@@ -43,7 +43,7 @@ progress_options: TypeAlias = Annotated[
 ]
 
 copy: TypeAlias = Annotated[
-    bool,
+    bool | None,
     """
     Passed through to numpy.array(). For numpy version 2.0 and later, if True (default),
     then the array data is copied. If None, a copy will only be made if necessary. If
