@@ -28,11 +28,12 @@ def rapid_nj(
     disallow_negative_distances: params.disallow_negative_distances = True,
     progress: params.progress = None,
     progress_options: params.progress_options = {},
+    copy: params.copy = True,
     gc: params.gc = 100,
 ) -> params.Z:
     # Make a copy of distance matrix D because we will overwrite it during the
     # algorithm.
-    D_copy: NDArray[np.float32] = np.array(D, copy=True, order="C", dtype=np.float32)
+    D_copy: NDArray[np.float32] = np.array(D, copy=copy, order="C", dtype=np.float32)
     del D
 
     # Ensure zeros on diagonal for the initial sum.
