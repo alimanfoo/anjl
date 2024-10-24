@@ -15,6 +15,7 @@ numpy = "*"
 pandas = "*"
 plotly = "*"
 numpydoc_decorator = "*"
+packaging = "*"
 
 # dev extras
 pytest = "*"
