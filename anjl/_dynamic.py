@@ -296,8 +296,10 @@ def dynamic_search(
     obsolete: NDArray[np.bool_],
     n_remaining: np.uintp,
 ):
+    """Search for the closest pair of neighbouring nodes to join."""
+
     # Size of the distance matrix.
-    n = np.uintp(D.shape[0])
+    m = np.uintp(D.shape[0])
 
     # Distance between pair of nodes with global minimum.
     d_xy = FLOAT32_INF
@@ -313,12 +315,13 @@ def dynamic_search(
     coefficient = np.float32(n_remaining - 2)
 
     # First scan the new row at index z and use as starting point for search.
-    y, q_xy, d_xy = search_row(
-        D=D, R=R, Q=Q, obsolete=obsolete, i=z, coefficient=coefficient
-    )
     x = z
+    y, q_xy, d_xy = search_row(
+        D=D, R=R, Q=Q, obsolete=obsolete, i=x, coefficient=coefficient
+    )
 
-    for _i in range(n):
+    # Iterate over rows of the distance matrix.
+    for _i in range(m):
         i = np.uintp(_i)  # row index
 
         if obsolete[i]:
@@ -467,9 +470,6 @@ def dynamic_iteration(
         x, y, d_xy = dynamic_search(
             D=D, R=R, Q=Q, z=previous_z, obsolete=obsolete, n_remaining=n_remaining
         )
-        assert x < D.shape[0], x
-        assert y < D.shape[0], y
-        assert not np.isinf(d_xy), d_xy
 
         # Calculate distances to the new internal node.
         d_xz = 0.5 * (d_xy + (1 / (n_remaining - 2)) * (R[x] - R[y]))
@@ -495,9 +495,13 @@ def dynamic_iteration(
     child_y = index_to_id[y]
 
     # Sanity checks.
+    assert x >= 0
+    assert y >= 0
     assert x < D.shape[0]
     assert y < D.shape[0]
     assert x != y
+    assert child_x >= 0
+    assert child_y >= 0
     assert child_x != child_y
 
     # Stabilise ordering for easier comparisons.
@@ -508,20 +512,20 @@ def dynamic_iteration(
 
     # Get number of leaves.
     if child_x < n_original:
-        leaves_i = np.float32(1)
+        leaves_x = np.float32(1)
     else:
-        leaves_i = Z[child_x - n_original, 4]
+        leaves_x = Z[child_x - n_original, 4]
     if child_y < n_original:
-        leaves_j = np.float32(1)
+        leaves_y = np.float32(1)
     else:
-        leaves_j = Z[child_y - n_original, 4]
+        leaves_y = Z[child_y - n_original, 4]
 
     # Store new node data.
     Z[iteration, 0] = child_x
     Z[iteration, 1] = child_y
     Z[iteration, 2] = d_xz
     Z[iteration, 3] = d_yz
-    Z[iteration, 4] = leaves_i + leaves_j
+    Z[iteration, 4] = leaves_x + leaves_y
 
     if n_remaining > 2:
         # Update data structures.

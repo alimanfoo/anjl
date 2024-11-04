@@ -254,9 +254,9 @@ def rapid_search(
     R_max: NDArray[np.float32],
 ) -> tuple[np.uintp, np.uintp]:
     # Initialize working variables.
-    q_min = FLOAT32_INF
-    i_min = UINTP_MAX
-    j_min = UINTP_MAX
+    q_xy = FLOAT32_INF
+    x = UINTP_MAX
+    y = UINTP_MAX
     coefficient = np.float32(n_remaining - 2)
     m = nodes_sorted.shape[0]
     n = nodes_sorted.shape[1]
@@ -277,7 +277,7 @@ def rapid_search(
         # Obtain max divergence for comparisons for this node.
         r_j_max = R_max[i]
         r_i_j_max = r_i + r_j_max
-        threshold = q_min + r_i_j_max
+        threshold = q_xy + r_i_j_max
 
         # Search the row up to threshold.
         for _s in range(n):
@@ -314,13 +314,13 @@ def rapid_search(
             r_j = R[j]
             q = q_partial - r_i - r_j
 
-            if q < q_min:
-                q_min = q
-                threshold = q_min + r_i_j_max
-                i_min = i
-                j_min = j
+            if q < q_xy:
+                q_xy = q
+                threshold = q_xy + r_i_j_max
+                x = i
+                y = j
 
-    return i_min, j_min
+    return x, y
 
 
 @njit(
@@ -334,11 +334,11 @@ def rapid_search(
         bool_[:],  # clustered
         bool_[:],  # obsolete
         uintp,  # parent
-        uintp,  # child_i
-        uintp,  # child_j
-        uintp,  # i_min
-        uintp,  # j_min
-        float32,  # d_ij
+        uintp,  # child_x
+        uintp,  # child_y
+        uintp,  # x
+        uintp,  # y
+        float32,  # d_xy
         float32[:],  # R_max
     ),
     nogil=NOGIL,
@@ -356,53 +356,58 @@ def rapid_update(
     clustered: NDArray[np.bool_],
     obsolete: NDArray[np.bool_],
     parent: np.uintp,
-    child_i: np.uintp,
-    child_j: np.uintp,
-    i_min: np.uintp,
-    j_min: np.uintp,
-    d_ij: np.float32,
+    child_x: np.uintp,
+    child_y: np.uintp,
+    x: np.uintp,
+    y: np.uintp,
+    d_xy: np.float32,
     R_max: NDArray[np.float32],
 ) -> None:
     # Update data structures. Here we obsolete the row corresponding to the node at
-    # j_min, and we reuse the row at i_min for the new node.
-    obsolete[j_min] = True
-    clustered[child_i] = True
-    clustered[child_j] = True
-    index_to_id[i_min] = parent
-    id_to_index[parent] = i_min
+    # y, and we reuse the row at x for the new node.
+    obsolete[y] = True
+    clustered[child_x] = True
+    clustered[child_y] = True
+
+    # Row index to be used for the new node.
+    z = x
+
+    # Node identifier.
+    index_to_id[z] = parent
+    id_to_index[parent] = z
 
     # Initialize divergence for the new node.
-    r_new = np.float32(0)
+    r_z = np.float32(0)
 
     # Update distances and divergence.
     for _k in range(D.shape[0]):
         k = uintp(_k)
 
-        if k == i_min or k == j_min or obsolete[k]:
+        if obsolete[k] or k == x or k == y:
             continue
 
         # Calculate distance from k to the new node.
-        d_ki = D[k, i_min]
-        d_kj = D[k, j_min]
-        d_k_new = 0.5 * (d_ki + d_kj - d_ij)
-        D[i_min, k] = d_k_new
-        D[k, i_min] = d_k_new
+        d_kx = D[k, x]
+        d_ky = D[k, y]
+        d_kz = 0.5 * (d_kx + d_ky - d_xy)
+        D[z, k] = d_kz
+        D[k, z] = d_kz
 
         # Subtract out the distances for the nodes that have just been joined and add
         # in distance for the new node.
-        r_k = R[k] - d_ki - d_kj + d_k_new
+        r_k = R[k] - d_kx - d_ky + d_kz
         R[k] = r_k
 
         # Accumulate divergence for the new node.
-        r_new += d_k_new
+        r_z += d_kz
 
     # Store divergence for the new node.
-    R[i_min] = r_new
+    R[x] = r_z
 
     # First cut down to just the active nodes.
     active = ~obsolete
-    active[i_min] = False  # exclude self
-    distances_active = D[i_min, active]
+    active[z] = False  # exclude self
+    distances_active = D[z, active]
     nodes_active = index_to_id[active]
 
     # Now sort the new distances.
@@ -412,11 +417,11 @@ def rapid_update(
 
     # Now update sorted nodes and distances.
     p = nodes_active_sorted.shape[0]
-    nodes_sorted[i_min, :p] = nodes_active_sorted
-    D_sorted[i_min, :p] = distances_active_sorted
+    nodes_sorted[z, :p] = nodes_active_sorted
+    D_sorted[z, :p] = distances_active_sorted
     # Mark the end of active nodes.
-    nodes_sorted[i_min, p] = UINTP_MAX
-    D_sorted[i_min, p] = FLOAT32_INF
+    nodes_sorted[z, p] = UINTP_MAX
+    D_sorted[z, p] = FLOAT32_INF
 
     # Update max divergences.
     rapid_update_r_max(
@@ -472,7 +477,7 @@ def rapid_iteration(
 
     if n_remaining > 2:
         # Search for the closest pair of nodes to join.
-        i_min, j_min = rapid_search(
+        x, y = rapid_search(
             D_sorted=D_sorted,
             R=R,
             nodes_sorted=nodes_sorted,
@@ -485,61 +490,61 @@ def rapid_iteration(
         )
 
         # Get IDs for the nodes to be joined.
-        child_i = index_to_id[i_min]
-        child_j = index_to_id[j_min]
+        child_x = index_to_id[x]
+        child_y = index_to_id[y]
 
         # Calculate distances to the new internal node.
-        d_ij = D[i_min, j_min]
-        d_i = 0.5 * (d_ij + (1 / (n_remaining - 2)) * (R[i_min] - R[j_min]))
-        d_j = 0.5 * (d_ij + (1 / (n_remaining - 2)) * (R[j_min] - R[i_min]))
+        d_xy = D[x, y]
+        d_xz = 0.5 * (d_xy + (1 / (n_remaining - 2)) * (R[x] - R[y]))
+        d_yz = 0.5 * (d_xy + (1 / (n_remaining - 2)) * (R[y] - R[x]))
 
     else:
         # Termination. Join the two remaining nodes, placing the final node at the
         # midpoint.
-        _child_i, _child_j = np.nonzero(~clustered)[0]
-        child_i = uintp(_child_i)
-        child_j = uintp(_child_j)
-        i_min = id_to_index[child_i]
-        j_min = id_to_index[child_j]
-        d_ij = D[i_min, j_min]
-        d_i = d_ij / 2
-        d_j = d_ij / 2
+        _child_x, _child_y = np.nonzero(~clustered)[0]
+        child_x = uintp(_child_x)
+        child_y = uintp(_child_y)
+        x = id_to_index[child_x]
+        y = id_to_index[child_y]
+        d_xy = D[x, y]
+        d_xz = d_xy / 2
+        d_yz = d_xy / 2
 
     # Sanity checks.
-    assert i_min >= 0
-    assert j_min >= 0
-    assert i_min != j_min
-    assert child_i >= 0
-    assert child_j >= 0
-    assert child_i != child_j
+    assert x >= 0
+    assert y >= 0
+    assert x != y
+    assert child_x >= 0
+    assert child_y >= 0
+    assert child_x != child_y
 
     # Handle possibility of negative distances.
     if disallow_negative_distances:
-        d_i = max(0, d_i)
-        d_j = max(0, d_j)
+        d_xz = max(0, d_xz)
+        d_yz = max(0, d_yz)
 
     # Stabilise ordering for easier comparisons.
-    if child_i > child_j:
-        child_i, child_j = child_j, child_i
-        i_min, j_min = j_min, i_min
-        d_i, d_j = d_j, d_i
+    if child_x > child_y:
+        child_x, child_y = child_y, child_x
+        x, y = y, x
+        d_xz, d_yz = d_yz, d_xz
 
     # Get number of leaves.
-    if child_i < n_original:
-        leaves_i = float32(1)
+    if child_x < n_original:
+        leaves_x = float32(1)
     else:
-        leaves_i = Z[child_i - n_original, 4]
-    if child_j < n_original:
-        leaves_j = float32(1)
+        leaves_x = Z[child_x - n_original, 4]
+    if child_y < n_original:
+        leaves_y = float32(1)
     else:
-        leaves_j = Z[child_j - n_original, 4]
+        leaves_y = Z[child_y - n_original, 4]
 
     # Store new node data.
-    Z[iteration, 0] = child_i
-    Z[iteration, 1] = child_j
-    Z[iteration, 2] = d_i
-    Z[iteration, 3] = d_j
-    Z[iteration, 4] = leaves_i + leaves_j
+    Z[iteration, 0] = child_x
+    Z[iteration, 1] = child_y
+    Z[iteration, 2] = d_xz
+    Z[iteration, 3] = d_yz
+    Z[iteration, 4] = leaves_x + leaves_y
 
     if n_remaining > 2:
         # Update data structures.
@@ -553,10 +558,10 @@ def rapid_iteration(
             clustered=clustered,
             obsolete=obsolete,
             parent=parent,
-            child_i=child_i,
-            child_j=child_j,
-            i_min=i_min,
-            j_min=j_min,
-            d_ij=d_ij,
+            child_x=child_x,
+            child_y=child_y,
+            x=x,
+            y=y,
+            d_xy=d_xy,
             R_max=R_max,
         )
