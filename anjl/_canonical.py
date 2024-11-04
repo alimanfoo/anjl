@@ -145,7 +145,7 @@ def canonical_search(
         uintp,  # parent
         uintp,  # x
         uintp,  # y
-        float32,  # d_ij
+        float32,  # d_xy
     ),
     nogil=NOGIL,
     fastmath=FASTMATH,
