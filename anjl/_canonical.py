@@ -47,7 +47,7 @@ def canonical_nj(
     Z: NDArray[np.float32] = np.zeros(shape=(n_internal, 5), dtype=np.float32)
 
     # Initialize the "divergence" array, containing sum of distances to other nodes.
-    U: NDArray[np.float32] = np.sum(D_copy, axis=1)
+    R: NDArray[np.float32] = np.sum(D_copy, axis=1)
 
     # Keep track of which rows correspond to nodes that have been clustered.
     obsolete: NDArray[np.bool_] = np.zeros(shape=n_original, dtype=np.bool_)
@@ -63,7 +63,7 @@ def canonical_nj(
         canonical_iteration(
             iteration=iteration,
             D=D_copy,
-            U=U,
+            R=R,
             index_to_id=index_to_id,
             obsolete=obsolete,
             Z=Z,
@@ -77,7 +77,7 @@ def canonical_nj(
 @njit(
     (
         float32[:, :],  # D
-        float32[:],  # U
+        float32[:],  # R
         bool_[:],  # obsolete
         uintp,  # n_remaining
     ),
@@ -88,45 +88,64 @@ def canonical_nj(
 )
 def canonical_search(
     D: NDArray[np.float32],
-    U: NDArray[np.float32],
+    R: NDArray[np.float32],
     obsolete: NDArray[np.bool_],
     n_remaining: np.uintp,
 ) -> tuple[np.uintp, np.uintp]:
-    # Search for the closest pair of neighbouring nodes to join.
-    q_min = FLOAT32_INF
-    i_min = UINTP_MAX
-    j_min = UINTP_MAX
+    """Search for the closest pair of neighbouring nodes to join."""
+
+    # Size of the distance matrix.
+    m = np.uintp(D.shape[0])
+
+    # Global minimum join criterion.
+    q_xy = FLOAT32_INF
+
+    # Indices of the pair of nodes with the global minimum, to be joined.
+    x = UINTP_MAX
+    y = UINTP_MAX
+
+    # Partially compute outside loop.
     coefficient = float32(n_remaining - 2)
-    m = D.shape[0]
+
+    # Iterate over rows of the distance matrix.
     for _i in range(m):
-        i = uintp(_i)
+        i = np.uintp(_i)  # row index
+
         if obsolete[i]:
             continue
-        u_i = U[i]
+
+        r_i = R[i]
+
+        # Iterate over columns of the distance matrix.
         for _j in range(i):
-            j = uintp(_j)
+            j = uintp(_j)  # column index
+
             if obsolete[j]:
                 continue
-            u_j = U[j]
+
+            r_j = R[j]
             d = D[i, j]
-            q = coefficient * d - u_i - u_j
-            if q < q_min:
-                q_min = q
-                i_min = i
-                j_min = j
-    return i_min, j_min
+            q = coefficient * d - r_i - r_j
+
+            if q < q_xy:
+                # Found new global minimum.
+                q_xy = q
+                x = i
+                y = j
+
+    return x, y
 
 
 @njit(
     void(
         float32[:, :],  # D
-        float32[:],  # U
+        float32[:],  # R
         uintp[:],  # index_to_id
         bool_[:],  # obsolete
         uintp,  # parent
-        uintp,  # i_min
-        uintp,  # j_min
-        float32,  # d_ij
+        uintp,  # x
+        uintp,  # y
+        float32,  # d_xy
     ),
     nogil=NOGIL,
     fastmath=FASTMATH,
@@ -135,53 +154,58 @@ def canonical_search(
 )
 def canonical_update(
     D: NDArray[np.float32],
-    U: NDArray[np.float32],
+    R: NDArray[np.float32],
     index_to_id: NDArray[np.uintp],
     obsolete: NDArray[np.bool_],
     parent: np.uintp,
-    i_min: np.uintp,
-    j_min: np.uintp,
-    d_ij: np.float32,
+    x: np.uintp,
+    y: np.uintp,
+    d_xy: np.float32,
 ) -> None:
-    # Here we obsolete the row and column corresponding to the node at j_min, and we
-    # reuse the row and column at i_min for the new node.
-    obsolete[j_min] = True
-    index_to_id[i_min] = parent
+    # Here we obsolete the row and column corresponding to the node at y, and we
+    # reuse the row and column at x for the new node.
+    obsolete[y] = True
+
+    # Row index to be used for the new node.
+    z = x
+
+    # Node identifier.
+    index_to_id[z] = parent
 
     # Initialize divergence for the new node.
-    u_new = float32(0)
+    r_z = float32(0)
 
     # Update distances and divergence.
     for _k in range(D.shape[0]):
         k = uintp(_k)
 
-        if obsolete[k] or k == i_min or k == j_min:
+        if obsolete[k] or k == x or k == y:
             continue
 
         # Calculate distance from k to the new node.
-        d_ki = D[k, i_min]
-        d_kj = D[k, j_min]
-        d_k_new = float32(0.5) * (d_ki + d_kj - d_ij)
-        D[i_min, k] = d_k_new
-        D[k, i_min] = d_k_new
+        d_kx = D[k, x]
+        d_ky = D[k, y]
+        d_kz = float32(0.5) * (d_kx + d_ky - d_xy)
+        D[z, k] = d_kz
+        D[k, z] = d_kz
 
         # Subtract out the distances for the nodes that have just been joined and add
         # in distance for the new node.
-        u_k = U[k] - d_ki - d_kj + d_k_new
-        U[k] = u_k
+        r_k = R[k] - d_kx - d_ky + d_kz
+        R[k] = r_k
 
         # Accumulate divergence for the new node.
-        u_new += d_k_new
+        r_z += d_kz
 
     # Assign divergence for the new node.
-    U[i_min] = u_new
+    R[z] = r_z
 
 
 @njit(
     void(
         uintp,  # iteration
         float32[:, :],  # D
-        float32[:],  # U
+        float32[:],  # R
         uintp[:],  # index_to_id
         bool_[:],  # obsolete
         float32[:, :],  # Z
@@ -196,7 +220,7 @@ def canonical_update(
 def canonical_iteration(
     iteration: np.uintp,
     D: NDArray[np.float32],
-    U: NDArray[np.float32],
+    R: NDArray[np.float32],
     index_to_id: NDArray[np.uintp],
     obsolete: NDArray[np.bool_],
     Z: NDArray[np.float32],
@@ -211,74 +235,74 @@ def canonical_iteration(
 
     if n_remaining > 2:
         # Search for the closest pair of nodes to join.
-        i_min, j_min = canonical_search(
-            D=D, U=U, obsolete=obsolete, n_remaining=n_remaining
-        )
+        x, y = canonical_search(D=D, R=R, obsolete=obsolete, n_remaining=n_remaining)
 
         # Calculate distances to the new internal node.
-        d_ij = D[i_min, j_min]
-        d_i = 0.5 * (d_ij + (1 / (n_remaining - 2)) * (U[i_min] - U[j_min]))
-        d_j = 0.5 * (d_ij + (1 / (n_remaining - 2)) * (U[j_min] - U[i_min]))
+        d_xy = D[x, y]
+        d_xz = 0.5 * (d_xy + (1 / (n_remaining - 2)) * (R[x] - R[y]))
+        d_yz = 0.5 * (d_xy + (1 / (n_remaining - 2)) * (R[y] - R[x]))
 
     else:
         # Termination. Join the two remaining nodes, placing the final node at the
         # midpoint.
-        _i_min, _j_min = np.nonzero(~obsolete)[0]
-        i_min = uintp(_i_min)
-        j_min = uintp(_j_min)
-        d_ij = D[i_min, j_min]
-        d_i = d_ij / 2
-        d_j = d_ij / 2
+        _x, _y = np.nonzero(~obsolete)[0]
+        x = uintp(_x)
+        y = uintp(_y)
+        d_xy = D[x, y]
+        d_xz = d_xy / 2
+        d_yz = d_xy / 2
 
     # Handle possibility of negative distances.
     if disallow_negative_distances:
-        d_i = max(float32(0), d_i)
-        d_j = max(float32(0), d_j)
+        d_xz = max(float32(0), d_xz)
+        d_yz = max(float32(0), d_yz)
 
     # Get IDs for the nodes to be joined.
-    child_i = index_to_id[i_min]
-    child_j = index_to_id[j_min]
+    child_x = index_to_id[x]
+    child_y = index_to_id[y]
 
     # Sanity checks.
-    assert i_min >= 0
-    assert j_min >= 0
-    assert i_min != j_min
-    assert child_i >= 0
-    assert child_j >= 0
-    assert child_i != child_j
+    assert x >= 0
+    assert y >= 0
+    assert x < D.shape[0]
+    assert y < D.shape[0]
+    assert x != y
+    assert child_x >= 0
+    assert child_y >= 0
+    assert child_x != child_y
 
     # Stabilise ordering for easier comparisons.
-    if child_i > child_j:
-        child_i, child_j = child_j, child_i
-        i_min, j_min = j_min, i_min
-        d_i, d_j = d_j, d_i
+    if child_x > child_y:
+        child_x, child_y = child_y, child_x
+        x, y = y, x
+        d_xz, d_yz = d_yz, d_xz
 
     # Get number of leaves.
-    if child_i < n_original:
-        leaves_i = float32(1)
+    if child_x < n_original:
+        leaves_x = float32(1)
     else:
-        leaves_i = Z[child_i - n_original, 4]
-    if child_j < n_original:
-        leaves_j = float32(1)
+        leaves_x = Z[child_x - n_original, 4]
+    if child_y < n_original:
+        leaves_y = float32(1)
     else:
-        leaves_j = Z[child_j - n_original, 4]
+        leaves_y = Z[child_y - n_original, 4]
 
     # Store new node data.
-    Z[iteration, 0] = child_i
-    Z[iteration, 1] = child_j
-    Z[iteration, 2] = d_i
-    Z[iteration, 3] = d_j
-    Z[iteration, 4] = leaves_i + leaves_j
+    Z[iteration, 0] = child_x
+    Z[iteration, 1] = child_y
+    Z[iteration, 2] = d_xz
+    Z[iteration, 3] = d_yz
+    Z[iteration, 4] = leaves_x + leaves_y
 
     if n_remaining > 2:
         # Update data structures.
         canonical_update(
             D=D,
-            U=U,
+            R=R,
             index_to_id=index_to_id,
             obsolete=obsolete,
             parent=parent,
-            i_min=i_min,
-            j_min=j_min,
-            d_ij=d_ij,
+            x=x,
+            y=y,
+            d_xy=d_xy,
         )
