@@ -74,7 +74,7 @@ def canonical_nj(
             index_to_id=index_to_id,
             obsolete=obsolete,
             Z=Z,
-            n_original=n_original,
+            n_original=np.uintp(n_original),
             disallow_negative_distances=disallow_negative_distances,
         )
 
@@ -124,7 +124,7 @@ def canonical_search(
         r_i = R[i]
 
         # Compute offset into condensed distance matrix.
-        offset = condensed_offset(_i, n_original)
+        _offset = condensed_offset(_i, n_original)
 
         # Iterate over columns of the distance matrix upper triangle.
         for _j in range(i + 1, n_original):
@@ -134,11 +134,11 @@ def canonical_search(
             if obsolete[j]:
                 continue
 
-            # Access divergence for the currend column.
+            # Access divergence for the current column.
             r_j = R[j]
 
             # Compute index into condensed distance matrix.
-            c = offset + j
+            c = np.uintp(_offset + _j)
 
             # Compute join criterion.
             d = distance[c]
@@ -263,6 +263,7 @@ def canonical_iteration(
             n_remaining=n_remaining,
             n_original=n_original,
         )
+        # TODO return d_xy
 
         # Calculate distances to the new internal node.
         c_xy = condensed_index(x, y, n_original)

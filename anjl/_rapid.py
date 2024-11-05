@@ -3,7 +3,15 @@ from numpy.typing import NDArray
 from numba import njit, uintp, float32, bool_, void
 from numpydoc_decorator import doc
 from . import params
-from ._util import NOGIL, FASTMATH, ERROR_MODEL, BOUNDSCHECK, FLOAT32_INF, UINTP_MAX
+from ._util import (
+    NOGIL,
+    FASTMATH,
+    ERROR_MODEL,
+    BOUNDSCHECK,
+    FLOAT32_INF,
+    UINTP_MAX,
+    ensure_square_distance,
+)
 
 
 @doc(
@@ -31,9 +39,8 @@ def rapid_nj(
     copy: params.copy = True,
     gc: params.gc = 100,
 ) -> params.Z:
-    # Make a copy of distance matrix D because we will overwrite it during the
-    # algorithm.
-    D_copy: NDArray[np.float32] = np.array(D, copy=copy, order="C", dtype=np.float32)
+    # Set up the distance matrix, ensure it is in square form.
+    D_copy = ensure_square_distance(D, copy=copy)
     del D
 
     # Ensure zeros on diagonal for the initial sum.

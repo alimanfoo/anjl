@@ -88,7 +88,8 @@ def test_mosquitoes(copy):
     validate_nj_result(Z, D)
 
     # Check condensed.
+    D, _ = anjl.data.mosquitoes()
     dist = squareform(D)
     assert dist.ndim == 1
-    Zc = anjl.canonical_nj(dist)
+    Zc = anjl.canonical_nj(dist, copy=copy)
     assert_allclose(Z, Zc)

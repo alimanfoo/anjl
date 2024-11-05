@@ -4,7 +4,18 @@ from numpy.typing import NDArray
 from numba import njit, uintp, float32, bool_
 from numpydoc_decorator import doc
 from . import params
-from ._util import NOGIL, FASTMATH, ERROR_MODEL, BOUNDSCHECK, FLOAT32_INF, UINTP_MAX
+from ._util import (
+    NOGIL,
+    FASTMATH,
+    ERROR_MODEL,
+    BOUNDSCHECK,
+    FLOAT32_INF,
+    UINTP_MAX,
+    ensure_condensed_distance,
+    setup_divergence,
+    condensed_index,
+    condensed_offset,
+)
 
 
 @doc(
@@ -28,19 +39,15 @@ def dynamic_nj(
     progress_options: params.progress_options = {},
     copy: params.copy = True,
 ) -> params.Z:
-    # Make a copy of distance matrix D because we will overwrite it during the
-    # algorithm.
-    D_copy: NDArray[np.float32] = np.array(D, copy=copy, order="C", dtype=np.float32)
+    # Set up the distance matrix, ensure it is in condensed form.
+    distance, n_original = ensure_condensed_distance(D=D, copy=copy)
     del D
-
-    # Number of original observations.
-    n_original = D_copy.shape[0]
 
     # Expected number of new (internal) nodes that will be created.
     n_internal = n_original - 1
 
     # Map row indices to node IDs.
-    index_to_id: NDArray[np.uintp] = np.arange(n_original, dtype=np.uintp)
+    index_to_id = np.arange(n_original, dtype=np.uintp)
 
     # Initialise output. This is similar to the output that scipy hierarchical
     # clustering functions return, where each row contains data for one internal node
@@ -53,19 +60,20 @@ def dynamic_nj(
     Z: NDArray[np.float32] = np.zeros(shape=(n_internal, 5), dtype=np.float32)
 
     # Initialize the "divergence" array, containing sum of distances to other nodes.
-    R: NDArray[np.float32] = np.sum(D_copy, axis=1)
+    R = setup_divergence(distance=distance, n_original=n_original)
 
     # Keep track of which rows correspond to nodes that have been clustered.
-    obsolete: NDArray[np.bool_] = np.zeros(shape=n_original, dtype=np.bool_)
+    obsolete = np.zeros(shape=n_original, dtype=np.bool_)
 
     # Initialise the dynamic algorithm.
     Q, z = dynamic_init(
-        D=D_copy,
+        distance=distance,
         R=R,
         Z=Z,
         obsolete=obsolete,
         index_to_id=index_to_id,
         disallow_negative_distances=disallow_negative_distances,
+        n_original=n_original,
     )
 
     # Support wrapping the iterator in a progress bar.
@@ -78,7 +86,7 @@ def dynamic_nj(
         # Perform one iteration of the neighbour-joining algorithm.
         z = dynamic_iteration(
             iteration=np.uintp(iteration),
-            D=D_copy,
+            distance=distance,
             R=R,
             Q=Q,
             previous_z=z,
@@ -94,12 +102,13 @@ def dynamic_nj(
 
 @njit(
     (
-        float32[:, :],  # D
-        float32[:],  # R
-        float32[:, :],  # Z
-        bool_[:],  # obsolete
-        uintp[:],  # index_to_id
+        float32[::1],  # distance
+        float32[::1],  # R
+        float32[:, ::1],  # Z
+        bool_[::1],  # obsolete
+        uintp[::1],  # index_to_id
         bool_,  # disallow_negative_distances
+        uintp,  # n_original
     ),
     nogil=NOGIL,
     fastmath=FASTMATH,
@@ -107,19 +116,17 @@ def dynamic_nj(
     boundscheck=BOUNDSCHECK,
 )
 def dynamic_init(
-    D: NDArray[np.float32],
+    distance: NDArray[np.float32],
     R: NDArray[np.float32],
     Z: NDArray[np.float32],
     obsolete: NDArray[np.bool_],
     index_to_id: NDArray[np.uintp],
     disallow_negative_distances: bool,
+    n_original: np.uintp,
 ):
     # Here we take a first pass through the distance matrix to locate the first pair
     # of nodes to join, and initialise the data structures needed for the dynamic
     # algorithm.
-
-    # Size of the distance matrix.
-    n = np.uintp(D.shape[0])
 
     # Distance between pair of nodes with global minimum.
     d_xy = FLOAT32_INF
@@ -132,31 +139,38 @@ def dynamic_init(
     y = UINTP_MAX
 
     # Partially compute outside loop.
-    coefficient = np.float32(n - 2)
+    coefficient = np.float32(n_original - 2)
 
     # Minimum join criterion per row.
-    Q = np.empty(shape=n, dtype=np.float32)
+    Q = np.empty(shape=n_original, dtype=np.float32)
 
-    # Scan the distance matrix.
-    for _i in range(n):
+    # Full scan of the distance matrix.
+    c = np.uintp(0)  # condensed index
+    for _i in range(n_original):
         i = np.uintp(_i)  # row index
+
         j = UINTP_MAX  # column index of row q minimum
         q_ij = FLOAT32_INF  # row q minimum
         d_ij = FLOAT32_INF  # distance at row q minimum
         r_i = R[i]  # divergence for node at row i
-        # Search the lower triangle of the distance matrix.
-        for _k in range(i):
-            k = np.uintp(_k)
-            r_k = R[k]
-            d = D[i, k]
+
+        # Search the upper triangle of the distance matrix.
+        for _k in range(i + 1, n_original):
+            k = np.uintp(_k)  # column index
+
+            r_k = R[k]  # divergence for node at row k
+            d = distance[c]
             q = coefficient * d - r_i - r_k
             if q < q_ij:
                 # Found new minimum within this row.
                 q_ij = q
                 d_ij = d
                 j = k
+            c += np.uintp(1)
+
         # Store minimum for this row.
         Q[i] = q_ij
+
         if q_ij < q_xy:
             # Found new global minimum.
             q_xy = q_ij
@@ -165,8 +179,8 @@ def dynamic_init(
             y = j
 
     # Sanity checks.
-    assert x < n
-    assert y < n
+    assert x < n_original
+    assert y < n_original
     assert x != y
 
     # Stabilise ordering for easier comparisons.
@@ -174,8 +188,8 @@ def dynamic_init(
         x, y = y, x
 
     # Calculate distances to the new internal node.
-    d_xz = 0.5 * (d_xy + (1 / (n - 2)) * (R[x] - R[y]))
-    d_yz = 0.5 * (d_xy + (1 / (n - 2)) * (R[y] - R[x]))
+    d_xz = 0.5 * (d_xy + (1 / (n_original - 2)) * (R[x] - R[y]))
+    d_yz = 0.5 * (d_xy + (1 / (n_original - 2)) * (R[y] - R[x]))
 
     # Handle possibility of negative distances.
     if disallow_negative_distances:
@@ -190,7 +204,7 @@ def dynamic_init(
     Z[0, 4] = 2
 
     # Identifier for the new node.
-    parent = n
+    parent = n_original
 
     # Row index to be used for the new node.
     z = x
@@ -203,18 +217,20 @@ def dynamic_init(
     r_z = np.float32(0)
 
     # Update distances and divergence.
-    for _k in range(D.shape[0]):
+    for _k in range(n_original):
         k = np.uintp(_k)
 
         if k == x or k == y:
             continue
 
-        # Calculate distance from k to the new node.
-        d_kx = D[k, x]
-        d_ky = D[k, y]
-        d_kz = np.float32(0.5) * (d_kx + d_ky - d_xy)
-        D[z, k] = d_kz
-        D[k, z] = d_kz
+        # Calculate and store distance from k to the new node.
+        c_kx = condensed_index(k, x, n_original)
+        d_kx = distance[c_kx]
+        c_ky = condensed_index(k, y, n_original)
+        d_ky = distance[c_ky]
+        d_kz = float32(0.5) * (d_kx + d_ky - d_xy)
+        c_kz = c_kx
+        distance[c_kz] = d_kz
 
         # Subtract out the distances for the nodes that have just been joined and add
         # in distance for the new node.
@@ -232,12 +248,13 @@ def dynamic_init(
 
 @njit(
     (
-        float32[:, :],  # D
-        float32[:],  # R
-        float32[:],  # Q
-        bool_[:],  # obsolete
+        float32[::1],  # distance
+        float32[::1],  # R
+        float32[::1],  # Q
+        bool_[::1],  # obsolete
         uintp,  # i
         float32,  # coefficient
+        uintp,  # n_original
     ),
     nogil=NOGIL,
     fastmath=FASTMATH,
@@ -245,43 +262,60 @@ def dynamic_init(
     boundscheck=BOUNDSCHECK,
 )
 def search_row(
-    D: NDArray[np.float32],
+    distance: NDArray[np.float32],
     R: NDArray[np.float32],
     Q: NDArray[np.float32],
     obsolete: NDArray[np.bool_],
     i: np.uintp,
     coefficient: np.float32,
+    n_original: np.uintp,
 ):
     # Search a single row of the distance matrix to find the row minimum join criterion.
+
     q_ij = FLOAT32_INF  # row minimum q
     d_ij = FLOAT32_INF  # distance at row minimum q
     j = UINTP_MAX  # column index at row minimum q
     r_i = R[i]  # divergence for node at row i
-    for _k in range(i):
+
+    # Compute offset into condensed distance matrix.
+    _offset = condensed_offset(i, n_original)
+
+    for _k in range(i + 1, n_original):
         k = np.uintp(_k)
         if obsolete[k]:
             continue
+
+        # Access divergence for the current column.
         r_k = R[k]
-        d = D[i, k]
+
+        # Compute index into condensed distance matrix.
+        c = np.uintp(_offset + _k)
+
+        # Compute join criterion.
+        d = distance[c]
         q = coefficient * d - r_i - r_k
+
         if q < q_ij:
             # Found new row minimum.
             q_ij = q
             d_ij = d
             j = k
+
     # Remember best match.
     Q[i] = q_ij
+
     return j, q_ij, d_ij
 
 
 @njit(
     (
-        float32[:, :],  # D
-        float32[:],  # R
-        float32[:],  # Q
+        float32[::1],  # distance
+        float32[::1],  # R
+        float32[::1],  # Q
         uintp,  # z
-        bool_[:],  # obsolete
+        bool_[::1],  # obsolete
         uintp,  # n_remaining
+        uintp,  # n_original
     ),
     nogil=NOGIL,
     fastmath=FASTMATH,
@@ -289,17 +323,15 @@ def search_row(
     boundscheck=BOUNDSCHECK,
 )
 def dynamic_search(
-    D: NDArray[np.float32],
+    distance: NDArray[np.float32],
     R: NDArray[np.float32],
     Q: NDArray[np.float32],
     z: np.uintp,  # index of new node created in previous iteration
     obsolete: NDArray[np.bool_],
     n_remaining: np.uintp,
+    n_original: np.uintp,
 ):
     """Search for the closest pair of neighbouring nodes to join."""
-
-    # Size of the distance matrix.
-    m = np.uintp(D.shape[0])
 
     # Distance between pair of nodes with global minimum.
     d_xy = FLOAT32_INF
@@ -317,24 +349,32 @@ def dynamic_search(
     # First scan the new row at index z and use as starting point for search.
     x = z
     y, q_xy, d_xy = search_row(
-        D=D, R=R, Q=Q, obsolete=obsolete, i=x, coefficient=coefficient
+        distance=distance,
+        R=R,
+        Q=Q,
+        obsolete=obsolete,
+        i=x,
+        coefficient=coefficient,
+        n_original=n_original,
     )
 
     # Iterate over rows of the distance matrix.
-    for _i in range(m):
+    for _i in range(n_original):
         i = np.uintp(_i)  # row index
 
         if obsolete[i]:
             continue
 
         if i == z:
+            # Already scanned above.
             continue
 
-        if i > z:
+        if i < z:
             # Calculate join criterion for the new node, and update Q if necessary.
             r_i = R[i]
             r_z = R[z]
-            d_iz = D[i, z]
+            c_iz = condensed_index(i, z, n_original)
+            d_iz = distance[c_iz]
             q_iz = coefficient * d_iz - r_i - r_z
             if q_iz < Q[i]:
                 Q[i] = q_iz
@@ -349,7 +389,13 @@ def dynamic_search(
         # Join criterion could be lower than the current global minimum. Fully search
         # the row.
         j, q_ij, d_ij = search_row(
-            D=D, R=R, Q=Q, obsolete=obsolete, i=i, coefficient=coefficient
+            distance=distance,
+            R=R,
+            Q=Q,
+            obsolete=obsolete,
+            i=i,
+            coefficient=coefficient,
+            n_original=n_original,
         )
 
         if q_ij < q_xy:
@@ -363,15 +409,16 @@ def dynamic_search(
 
 
 @njit(
-    (
-        float32[:, :],  # D
-        float32[:],  # R
-        uintp[:],  # index_to_id
-        bool_[:],  # obsolete
+    uintp(
+        float32[::1],  # distance
+        float32[::1],  # R
+        uintp[::1],  # index_to_id
+        bool_[::1],  # obsolete
         uintp,  # parent
         uintp,  # x
         uintp,  # y
         float32,  # d_xy
+        uintp,  # n_original
     ),
     nogil=NOGIL,
     fastmath=FASTMATH,
@@ -379,7 +426,7 @@ def dynamic_search(
     boundscheck=BOUNDSCHECK,
 )
 def dynamic_update(
-    D: NDArray[np.float32],
+    distance: NDArray[np.float32],
     R: NDArray[np.float32],
     index_to_id: NDArray[np.uintp],
     obsolete: NDArray[np.bool_],
@@ -387,7 +434,8 @@ def dynamic_update(
     x: np.uintp,
     y: np.uintp,
     d_xy: np.float32,
-):
+    n_original: np.uintp,
+) -> np.uintp:
     # Here we obsolete the row and column corresponding to the node at y, and we
     # reuse the row and column at x for the new node.
     obsolete[y] = True
@@ -399,21 +447,23 @@ def dynamic_update(
     index_to_id[z] = parent
 
     # Initialize divergence for the new node.
-    r_z = np.float32(0)
+    r_z = float32(0)
 
     # Update distances and divergence.
-    for _k in range(D.shape[0]):
+    for _k in range(n_original):
         k = np.uintp(_k)
 
         if obsolete[k] or k == x or k == y:
             continue
 
-        # Calculate distance from k to the new node.
-        d_kx = D[k, x]
-        d_ky = D[k, y]
-        d_kz = np.float32(0.5) * (d_kx + d_ky - d_xy)
-        D[z, k] = d_kz
-        D[k, z] = d_kz
+        # Calculate and store distance from k to the new node.
+        c_kx = condensed_index(k, x, n_original)
+        d_kx = distance[c_kx]
+        c_ky = condensed_index(k, y, n_original)
+        d_ky = distance[c_ky]
+        d_kz = float32(0.5) * (d_kx + d_ky - d_xy)
+        c_kz = c_kx
+        distance[c_kz] = d_kz
 
         # Subtract out the distances for the nodes that have just been joined and add
         # in distance for the new node.
@@ -430,15 +480,15 @@ def dynamic_update(
 
 
 @njit(
-    (
+    uintp(
         uintp,  # iteration
-        float32[:, :],  # D
-        float32[:],  # R
-        float32[:],  # Q
+        float32[::1],  # distance
+        float32[::1],  # R
+        float32[::1],  # Q
         uintp,  # previous_z
-        uintp[:],  # index_to_id
-        bool_[:],  # obsolete
-        float32[:, :],  # Z
+        uintp[::1],  # index_to_id
+        bool_[::1],  # obsolete
+        float32[:, ::1],  # Z
         uintp,  # n_original
         bool_,  # disallow_negative_distances
     ),
@@ -449,7 +499,7 @@ def dynamic_update(
 )
 def dynamic_iteration(
     iteration: np.uintp,
-    D: NDArray[np.float32],
+    distance: NDArray[np.float32],
     R: NDArray[np.float32],
     Q,
     previous_z,
@@ -458,7 +508,7 @@ def dynamic_iteration(
     Z: NDArray[np.float32],
     n_original: np.uintp,
     disallow_negative_distances: bool,
-):
+) -> np.uintp:
     # This will be the identifier for the new node to be created in this iteration.
     parent = iteration + n_original
 
@@ -468,7 +518,13 @@ def dynamic_iteration(
     if n_remaining > 2:
         # Search for the closest pair of nodes to join.
         x, y, d_xy = dynamic_search(
-            D=D, R=R, Q=Q, z=previous_z, obsolete=obsolete, n_remaining=n_remaining
+            distance=distance,
+            R=R,
+            Q=Q,
+            z=previous_z,
+            obsolete=obsolete,
+            n_remaining=n_remaining,
+            n_original=n_original,
         )
 
         # Calculate distances to the new internal node.
@@ -481,7 +537,8 @@ def dynamic_iteration(
         _x, _y = np.nonzero(~obsolete)[0]
         x = np.uintp(_x)
         y = np.uintp(_y)
-        d_xy = D[x, y]
+        c_xy = condensed_index(x, y, n_original)
+        d_xy = distance[c_xy]
         d_xz = d_xy / 2
         d_yz = d_xy / 2
 
@@ -497,8 +554,8 @@ def dynamic_iteration(
     # Sanity checks.
     assert x >= 0
     assert y >= 0
-    assert x < D.shape[0]
-    assert y < D.shape[0]
+    assert x < n_original
+    assert y < n_original
     assert x != y
     assert child_x >= 0
     assert child_y >= 0
@@ -530,7 +587,7 @@ def dynamic_iteration(
     if n_remaining > 2:
         # Update data structures.
         new_z = dynamic_update(
-            D=D,
+            distance=distance,
             R=R,
             index_to_id=index_to_id,
             obsolete=obsolete,
@@ -538,6 +595,7 @@ def dynamic_iteration(
             x=x,
             y=y,
             d_xy=d_xy,
+            n_original=n_original,
         )
 
     else:

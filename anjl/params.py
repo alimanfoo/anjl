@@ -8,7 +8,10 @@ import plotly.graph_objects as go
 
 D: TypeAlias = Annotated[
     NDArray,
-    "A distance matrix in square form.",
+    """
+    A distance matrix, either in square form, or condensed upper triangle form (e.g., as
+    returned by scipy's pdist function).
+    """,
 ]
 
 Z: TypeAlias = Annotated[
