@@ -5,6 +5,101 @@ from numpydoc_decorator import doc
 from . import params
 from ._util import NOGIL, FASTMATH, ERROR_MODEL, BOUNDSCHECK, FLOAT32_INF, UINTP_MAX
 
+BOUNDSCHECK = True  # noqa
+
+
+def setup_distance(D: params.D, copy: params.copy):
+    if D.ndim == 1:
+        # Calculate number of original observations.
+        n_pairs = D.shape[0]
+        n_original = int((1 + np.sqrt(1 + 8 * n_pairs)) // 2)
+
+        # Sanity check.
+        if (n_original * (n_original - 1) // 2) != n_pairs:
+            raise ValueError("D is not a valid condensed distance matrix.")
+
+        # Assume that D is already a condensed distance matrix in scipy (upper triangle)
+        # layout.
+        dist = np.array(D, copy=copy, dtype=np.float32)
+
+    elif D.ndim == 2:
+        # Check square.
+        if D.shape[0] != D.shape[1]:
+            raise ValueError("D is not a valid square distance matrix.")
+
+        # Calculate number of pairs.
+        n_original = D.shape[0]
+        n_pairs = n_original * (n_original - 1) // 2
+
+        # Create and fill condensed distance matrix.
+        dist = square_to_condensed(D)
+
+    return dist, n_original
+
+
+@njit(
+    float32[:](float32[:, :]),
+    nogil=NOGIL,
+    fastmath=FASTMATH,
+    error_model=ERROR_MODEL,
+    boundscheck=BOUNDSCHECK,
+)
+def square_to_condensed(D: params.D):
+    # Calculate number of pairs.
+    n_original = D.shape[0]
+    n_pairs = n_original * (n_original - 1) // 2
+
+    # Create and fill condensed distance matrix.
+    dist = np.empty(n_pairs, dtype=np.float32)
+    c = np.uintp(0)
+    for _i in range(n_original):
+        i = np.uintp(_i)
+        for _j in range(i + np.uintp(1), n_original):
+            j = np.uintp(_j)
+            dist[c] = D[i, j]
+            c += np.uintp(1)
+
+    return dist
+
+
+@njit(
+    float32[:](float32[:], uintp),
+    nogil=NOGIL,
+    fastmath=FASTMATH,
+    error_model=ERROR_MODEL,
+    boundscheck=BOUNDSCHECK,
+)
+def setup_divergence(dist, n_original):
+    R = np.empty(n_original, dtype=np.float32)
+    c = np.uintp(0)
+    for _i in range(n_original):
+        i = np.uintp(_i)
+        for _j in range(i + np.uintp(1), n_original):
+            j = np.uintp(_j)
+            d = dist[c]
+            R[i] += d
+            R[j] += d
+            c += np.uintp(1)
+    return R
+
+
+@njit(
+    uintp(
+        uintp,  # i
+        uintp,  # j
+        uintp,  # n
+    ),
+    nogil=NOGIL,
+    fastmath=FASTMATH,
+    error_model=ERROR_MODEL,
+    boundscheck=BOUNDSCHECK,
+)
+def condensed_index(i, j, n):
+    """Convert distance matrix coordinates from square form (i, j) to condensed form."""
+    if i > j:
+        i, j = j, i  # upper triangle only
+    return np.uintp(n * i - i * (i + 1) // 2 - 1 - i + j)
+
 
 @doc(
     summary="""Perform neighbour-joining using the canonical algorithm.""",
@@ -22,13 +117,9 @@ def canonical_nj(
     progress_options: params.progress_options = {},
     copy: params.copy = True,
 ) -> params.Z:
-    # Make a copy of distance matrix D because we will overwrite it during the
-    # algorithm.
-    D_copy: NDArray[np.float32] = np.array(D, copy=copy, order="C", dtype=np.float32)
+    # Set up the distance matrix, ensure it is in condensed form.
+    dist, n_original = setup_distance(D=D, copy=copy)
     del D
-
-    # Number of original observations.
-    n_original = D_copy.shape[0]
 
     # Expected number of new (internal) nodes that will be created.
     n_internal = n_original - 1
@@ -47,7 +138,7 @@ def canonical_nj(
     Z: NDArray[np.float32] = np.zeros(shape=(n_internal, 5), dtype=np.float32)
 
     # Initialize the "divergence" array, containing sum of distances to other nodes.
-    R: NDArray[np.float32] = np.sum(D_copy, axis=1)
+    R: NDArray[np.float32] = setup_divergence(dist=dist, n_original=n_original)
 
     # Keep track of which rows correspond to nodes that have been clustered.
     obsolete: NDArray[np.bool_] = np.zeros(shape=n_original, dtype=np.bool_)
@@ -62,7 +153,7 @@ def canonical_nj(
         # Perform one iteration of the neighbour-joining algorithm.
         canonical_iteration(
             iteration=iteration,
-            D=D_copy,
+            dist=dist,
             R=R,
             index_to_id=index_to_id,
             obsolete=obsolete,
@@ -76,10 +167,11 @@ def canonical_nj(
 
 @njit(
     (
-        float32[:, :],  # D
+        float32[:],  # dist
         float32[:],  # R
         bool_[:],  # obsolete
         uintp,  # n_remaining
+        uintp,  # n_original
     ),
     nogil=NOGIL,
     fastmath=FASTMATH,
@@ -87,15 +179,13 @@ def canonical_nj(
     boundscheck=BOUNDSCHECK,
 )
 def canonical_search(
-    D: NDArray[np.float32],
+    dist: NDArray[np.float32],
     R: NDArray[np.float32],
     obsolete: NDArray[np.bool_],
     n_remaining: np.uintp,
+    n_original: np.uintp,
 ) -> tuple[np.uintp, np.uintp]:
     """Search for the closest pair of neighbouring nodes to join."""
-
-    # Size of the distance matrix.
-    m = np.uintp(D.shape[0])
 
     # Global minimum join criterion.
     q_xy = FLOAT32_INF
@@ -108,7 +198,7 @@ def canonical_search(
     coefficient = float32(n_remaining - 2)
 
     # Iterate over rows of the distance matrix.
-    for _i in range(m):
+    for _i in range(n_original):
         i = np.uintp(_i)  # row index
 
         if obsolete[i]:
@@ -117,14 +207,15 @@ def canonical_search(
         r_i = R[i]
 
         # Iterate over columns of the distance matrix.
-        for _j in range(i):
+        for _j in range(i + 1, n_original):
             j = uintp(_j)  # column index
 
             if obsolete[j]:
                 continue
 
             r_j = R[j]
-            d = D[i, j]
+            c = condensed_index(i, j, n_original)
+            d = dist[c]
             q = coefficient * d - r_i - r_j
 
             if q < q_xy:
@@ -138,7 +229,7 @@ def canonical_search(
 
 @njit(
     void(
-        float32[:, :],  # D
+        float32[:],  # dist
         float32[:],  # R
         uintp[:],  # index_to_id
         bool_[:],  # obsolete
@@ -146,6 +237,7 @@ def canonical_search(
         uintp,  # x
         uintp,  # y
         float32,  # d_xy
+        uintp,  # n_original
     ),
     nogil=NOGIL,
     fastmath=FASTMATH,
@@ -153,7 +245,7 @@ def canonical_search(
     boundscheck=BOUNDSCHECK,
 )
 def canonical_update(
-    D: NDArray[np.float32],
+    dist: NDArray[np.float32],
     R: NDArray[np.float32],
     index_to_id: NDArray[np.uintp],
     obsolete: NDArray[np.bool_],
@@ -161,6 +253,7 @@ def canonical_update(
     x: np.uintp,
     y: np.uintp,
     d_xy: np.float32,
+    n_original: np.uintp,
 ) -> None:
     # Here we obsolete the row and column corresponding to the node at y, and we
     # reuse the row and column at x for the new node.
@@ -176,18 +269,17 @@ def canonical_update(
     r_z = float32(0)
 
     # Update distances and divergence.
-    for _k in range(D.shape[0]):
+    for _k in range(n_original):
         k = uintp(_k)
 
         if obsolete[k] or k == x or k == y:
             continue
 
         # Calculate distance from k to the new node.
-        d_kx = D[k, x]
-        d_ky = D[k, y]
+        d_kx = dist[condensed_index(k, x, n_original)]
+        d_ky = dist[condensed_index(k, y, n_original)]
         d_kz = float32(0.5) * (d_kx + d_ky - d_xy)
-        D[z, k] = d_kz
-        D[k, z] = d_kz
+        dist[condensed_index(z, k, n_original)] = d_kz
 
         # Subtract out the distances for the nodes that have just been joined and add
         # in distance for the new node.
@@ -204,7 +296,7 @@ def canonical_update(
 @njit(
     void(
         uintp,  # iteration
-        float32[:, :],  # D
+        float32[:],  # dist
         float32[:],  # R
         uintp[:],  # index_to_id
         bool_[:],  # obsolete
@@ -219,7 +311,7 @@ def canonical_update(
 )
 def canonical_iteration(
     iteration: np.uintp,
-    D: NDArray[np.float32],
+    dist: NDArray[np.float32],
     R: NDArray[np.float32],
     index_to_id: NDArray[np.uintp],
     obsolete: NDArray[np.bool_],
@@ -235,10 +327,16 @@ def canonical_iteration(
 
     if n_remaining > 2:
         # Search for the closest pair of nodes to join.
-        x, y = canonical_search(D=D, R=R, obsolete=obsolete, n_remaining=n_remaining)
+        x, y = canonical_search(
+            dist=dist,
+            R=R,
+            obsolete=obsolete,
+            n_remaining=n_remaining,
+            n_original=n_original,
+        )
 
         # Calculate distances to the new internal node.
-        d_xy = D[x, y]
+        d_xy = dist[condensed_index(x, y, n_original)]
         d_xz = 0.5 * (d_xy + (1 / (n_remaining - 2)) * (R[x] - R[y]))
         d_yz = 0.5 * (d_xy + (1 / (n_remaining - 2)) * (R[y] - R[x]))
 
@@ -248,7 +346,7 @@ def canonical_iteration(
         _x, _y = np.nonzero(~obsolete)[0]
         x = uintp(_x)
         y = uintp(_y)
-        d_xy = D[x, y]
+        d_xy = dist[condensed_index(x, y, n_original)]
         d_xz = d_xy / 2
         d_yz = d_xy / 2
 
@@ -264,8 +362,8 @@ def canonical_iteration(
     # Sanity checks.
     assert x >= 0
     assert y >= 0
-    assert x < D.shape[0]
-    assert y < D.shape[0]
+    assert x < n_original
+    assert y < n_original
     assert x != y
     assert child_x >= 0
     assert child_y >= 0
@@ -297,7 +395,7 @@ def canonical_iteration(
     if n_remaining > 2:
         # Update data structures.
         canonical_update(
-            D=D,
+            dist=dist,
             R=R,
             index_to_id=index_to_id,
             obsolete=obsolete,
@@ -305,4 +403,5 @@ def canonical_iteration(
             x=x,
             y=y,
             d_xy=d_xy,
+            n_original=n_original,
         )
