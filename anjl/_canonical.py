@@ -1,9 +1,9 @@
 import numpy as np
 from numpy.typing import NDArray
-from numba import njit, uintp, float32, bool_, void
+from numba import float32
 from numpydoc_decorator import doc
 from . import params
-from ._util import NOGIL, FASTMATH, ERROR_MODEL, BOUNDSCHECK, FLOAT32_INF, UINTP_MAX
+from ._util import BOUNDSCHECK, FLOAT32_INF, UINTP_MAX
 
 BOUNDSCHECK = True  # noqa
 
@@ -32,73 +32,85 @@ def setup_distance(D: params.D, copy: params.copy):
         n_pairs = n_original * (n_original - 1) // 2
 
         # Create and fill condensed distance matrix.
-        dist = square_to_condensed(D)
+        dist = np.zeros(n_pairs, dtype=np.float32)
+        square_to_condensed(D=D, dist=dist, n_original=n_original)
+        for i in range(n_original):
+            for j in range(n_original):
+                if i != j:
+                    ix = condensed_index(i, j, n_original)
+                    assert D[i, j] == dist[ix], (i, j, ix)
+        # print(D)
+        # print(dist)
 
     return dist, n_original
 
 
-@njit(
-    float32[:](float32[:, :]),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
-)
-def square_to_condensed(D: params.D):
-    # Calculate number of pairs.
-    n_original = D.shape[0]
-    n_pairs = n_original * (n_original - 1) // 2
-
-    # Create and fill condensed distance matrix.
-    dist = np.empty(n_pairs, dtype=np.float32)
-    c = np.uintp(0)
-    for _i in range(n_original):
-        i = np.uintp(_i)
-        for _j in range(i + np.uintp(1), n_original):
-            j = np.uintp(_j)
-            dist[c] = D[i, j]
-            c += np.uintp(1)
-
-    return dist
+# @njit(
+#     void(
+#         float32[:, :],
+#         float32[:],
+#         uintp,
+#     ),
+#     nogil=NOGIL,
+#     fastmath=FASTMATH,
+#     error_model=ERROR_MODEL,
+#     boundscheck=BOUNDSCHECK,
+# )
+def square_to_condensed(D, dist, n_original):
+    t = 0
+    for i in range(n_original):
+        for j in range(i + 1, n_original):
+            # assert t == condensed_index(i, j, n_original)
+            dist[t] = D[i, j]
+            t += 1
 
 
-@njit(
-    float32[:](float32[:], uintp),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
-)
+# @njit(
+#     float32[:](
+#         float32[:],
+#         uintp,
+#     ),
+#     nogil=NOGIL,
+#     fastmath=FASTMATH,
+#     error_model=ERROR_MODEL,
+#     boundscheck=BOUNDSCHECK,
+# )
 def setup_divergence(dist, n_original):
-    R = np.empty(n_original, dtype=np.float32)
-    c = np.uintp(0)
-    for _i in range(n_original):
-        i = np.uintp(_i)
-        for _j in range(i + np.uintp(1), n_original):
-            j = np.uintp(_j)
-            d = dist[c]
+    R = np.zeros(n_original, dtype=np.float32)
+    t = 0
+    for i in range(n_original):
+        for j in range(i + 1, n_original):
+            # assert t == condensed_index(i, j, n_original)
+            d = dist[t]
             R[i] += d
             R[j] += d
-            c += np.uintp(1)
+            t += 1
     return R
 
 
-@njit(
-    uintp(
-        uintp,  # i
-        uintp,  # j
-        uintp,  # n
-    ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
-)
-def condensed_index(i, j, n):
+# @njit(
+#     uintp(
+#         uintp,  # i
+#         uintp,  # j
+#         uintp,  # n
+#     ),
+#     nogil=NOGIL,
+#     fastmath=FASTMATH,
+#     error_model=ERROR_MODEL,
+#     boundscheck=BOUNDSCHECK,
+# )
+def condensed_index(row, col, num):
     """Convert distance matrix coordinates from square form (i, j) to condensed form."""
+    # N.B., need to calculate as signed integers to avoid overflow errors.
+    i = int(row)
+    j = int(col)
+    n = int(num)
     if i > j:
         i, j = j, i  # upper triangle only
-    return np.uintp(n * i - i * (i + 1) // 2 - 1 - i + j)
+    assert i != j, "diagonal"
+    t = int(n * i - i * (i + 1) // 2 - 1 - i + j)
+    print(i, j, n, t)
+    return t
 
 
 @doc(
@@ -150,6 +162,10 @@ def canonical_nj(
 
     # Begin iterating.
     for iteration in iterator:
+        # print("iteration", iteration)
+        # print("dist", dist)
+        print("Z", Z)
+
         # Perform one iteration of the neighbour-joining algorithm.
         canonical_iteration(
             iteration=iteration,
@@ -165,19 +181,19 @@ def canonical_nj(
     return Z
 
 
-@njit(
-    (
-        float32[:],  # dist
-        float32[:],  # R
-        bool_[:],  # obsolete
-        uintp,  # n_remaining
-        uintp,  # n_original
-    ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
-)
+# @njit(
+#     (
+#         float32[:],  # dist
+#         float32[:],  # R
+#         bool_[:],  # obsolete
+#         uintp,  # n_remaining
+#         uintp,  # n_original
+#     ),
+#     nogil=NOGIL,
+#     fastmath=FASTMATH,
+#     error_model=ERROR_MODEL,
+#     boundscheck=BOUNDSCHECK,
+# )
 def canonical_search(
     dist: NDArray[np.float32],
     R: NDArray[np.float32],
@@ -198,24 +214,20 @@ def canonical_search(
     coefficient = float32(n_remaining - 2)
 
     # Iterate over rows of the distance matrix.
-    for _i in range(n_original):
-        i = np.uintp(_i)  # row index
-
+    for i in range(n_original):
         if obsolete[i]:
             continue
 
         r_i = R[i]
 
         # Iterate over columns of the distance matrix.
-        for _j in range(i + 1, n_original):
-            j = uintp(_j)  # column index
-
+        for j in range(i + 1, n_original):
             if obsolete[j]:
                 continue
 
             r_j = R[j]
-            c = condensed_index(i, j, n_original)
-            d = dist[c]
+            t = condensed_index(i, j, n_original)
+            d = dist[t]
             q = coefficient * d - r_i - r_j
 
             if q < q_xy:
@@ -227,23 +239,23 @@ def canonical_search(
     return x, y
 
 
-@njit(
-    void(
-        float32[:],  # dist
-        float32[:],  # R
-        uintp[:],  # index_to_id
-        bool_[:],  # obsolete
-        uintp,  # parent
-        uintp,  # x
-        uintp,  # y
-        float32,  # d_xy
-        uintp,  # n_original
-    ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
-)
+# @njit(
+#     void(
+#         float32[:],  # dist
+#         float32[:],  # R
+#         uintp[:],  # index_to_id
+#         bool_[:],  # obsolete
+#         uintp,  # parent
+#         uintp,  # x
+#         uintp,  # y
+#         float32,  # d_xy
+#         uintp,  # n_original
+#     ),
+#     nogil=NOGIL,
+#     fastmath=FASTMATH,
+#     error_model=ERROR_MODEL,
+#     boundscheck=BOUNDSCHECK,
+# )
 def canonical_update(
     dist: NDArray[np.float32],
     R: NDArray[np.float32],
@@ -269,9 +281,7 @@ def canonical_update(
     r_z = float32(0)
 
     # Update distances and divergence.
-    for _k in range(n_original):
-        k = uintp(_k)
-
+    for k in range(n_original):
         if obsolete[k] or k == x or k == y:
             continue
 
@@ -293,22 +303,22 @@ def canonical_update(
     R[z] = r_z
 
 
-@njit(
-    void(
-        uintp,  # iteration
-        float32[:],  # dist
-        float32[:],  # R
-        uintp[:],  # index_to_id
-        bool_[:],  # obsolete
-        float32[:, :],  # Z
-        uintp,  # n_original
-        bool_,  # disallow_negative_distances
-    ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
-)
+# @njit(
+#     void(
+#         uintp,  # iteration
+#         float32[:],  # dist
+#         float32[:],  # R
+#         uintp[:],  # index_to_id
+#         bool_[:],  # obsolete
+#         float32[:, :],  # Z
+#         uintp,  # n_original
+#         bool_,  # disallow_negative_distances
+#     ),
+#     nogil=NOGIL,
+#     fastmath=FASTMATH,
+#     error_model=ERROR_MODEL,
+#     boundscheck=BOUNDSCHECK,
+# )
 def canonical_iteration(
     iteration: np.uintp,
     dist: NDArray[np.float32],
@@ -343,9 +353,7 @@ def canonical_iteration(
     else:
         # Termination. Join the two remaining nodes, placing the final node at the
         # midpoint.
-        _x, _y = np.nonzero(~obsolete)[0]
-        x = uintp(_x)
-        y = uintp(_y)
+        x, y = np.nonzero(~obsolete)[0]
         d_xy = dist[condensed_index(x, y, n_original)]
         d_xz = d_xy / 2
         d_yz = d_xy / 2
