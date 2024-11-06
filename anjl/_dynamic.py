@@ -359,7 +359,11 @@ def dynamic_search(
     for _i in range(n_original):
         i = np.uintp(_i)  # row index
 
-        if i == z or obsolete[i]:
+        if obsolete[i]:
+            continue
+
+        if i == z:
+            # Already searched.
             continue
 
         if i < z:
@@ -443,32 +447,6 @@ def dynamic_search_parallel(
         n_original=n_original,
     )
 
-    # Next update the other rows above z in case the new node at z has created a lower
-    # join criterion.
-    for _i in range(z):
-        i = np.uintp(_i)  # row index
-
-        if obsolete[i]:
-            continue
-
-        # Calculate join criterion for the new node.
-        r_i = R[i]
-        r_z = R[z]
-        c_iz = condensed_index(i, z, n_original)
-        d_iz = distance[c_iz]
-        q_iz = coefficient * d_iz - r_i - r_z
-
-        # Update Q if necessary.
-        if q_iz < Q[i]:
-            Q[i] = q_iz
-
-        # Update the global minimum, in case it allows more rows to be skipped.
-        if q_iz < global_q_xy:
-            global_q_xy = q_iz
-            global_d_xy = d_iz
-            global_x = i
-            global_y = z
-
     # Prepare for parallel search.
     n_threads = get_num_threads()
     results_q_xy = np.empty(n_threads, dtype=np.float32)
@@ -483,14 +461,32 @@ def dynamic_search_parallel(
         local_x = global_x
         local_y = global_y
 
-        # Iterate over rows of the distance matrix, striped work distribution.
+        # Iterate over rows of the distance matrix.
+        # Striped work distribution.
         for _i in range(t, n_original, n_threads):
             i = np.uintp(_i)  # row index
 
-            if i == z or obsolete[i]:
+            if obsolete[i]:
                 continue
 
-            if Q[i] > global_q_xy:
+            if i == z:
+                # Already searched.
+                continue
+
+            # Previous row minimum.
+            q_i = Q[i]
+
+            if i < z:
+                # Calculate join criterion for the new node, and update Q if necessary.
+                r_i = R[i]
+                r_z = R[z]
+                c_iz = condensed_index(i, z, n_original)
+                d_iz = distance[c_iz]
+                q_iz = coefficient * d_iz - r_i - r_z
+                if q_iz < q_i:
+                    Q[i] = q_iz
+
+            if q_i > global_q_xy:
                 # We can skip this row. The previous row optimum join criterion is greater
                 # than the current global optimum, and so there is now way that this row
                 # can contain a better match. This is the core optimisation of the dynamic
