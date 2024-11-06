@@ -57,6 +57,13 @@ copy: TypeAlias = Annotated[
     """,
 ]
 
+parallel: TypeAlias = Annotated[
+    bool,
+    """
+    If True, attempt to use multiple CPU threads to accelerate the computation.
+    """,
+]
+
 gc: TypeAlias = Annotated[
     int | None,
     """

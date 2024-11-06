@@ -1,6 +1,6 @@
 import numpy as np
 from numpy.typing import NDArray
-from numba import njit, uintp, float32, bool_, void
+from numba import njit, uintp, float32, bool_, void, prange, get_num_threads
 from numpydoc_decorator import doc
 from . import params
 from ._util import (
@@ -32,6 +32,7 @@ def canonical_nj(
     progress: params.progress = None,
     progress_options: params.progress_options = {},
     copy: params.copy = True,
+    parallel: params.parallel = True,
 ) -> params.Z:
     # Set up the distance matrix, ensure it is in condensed form.
     distance, n_original = ensure_condensed_distance(D=D, copy=copy)
@@ -76,6 +77,7 @@ def canonical_nj(
             Z=Z,
             n_original=np.uintp(n_original),
             disallow_negative_distances=disallow_negative_distances,
+            parallel=parallel,
         )
 
     return Z
@@ -149,6 +151,101 @@ def canonical_search(
                 q_xy = q
                 x = i
                 y = j
+
+    return x, y
+
+
+@njit(
+    (
+        float32[::1],  # distance
+        float32[::1],  # R
+        bool_[::1],  # obsolete
+        uintp,  # n_remaining
+        uintp,  # n_original
+    ),
+    nogil=NOGIL,
+    fastmath=FASTMATH,
+    error_model=ERROR_MODEL,
+    boundscheck=BOUNDSCHECK,
+    parallel=True,
+)
+def canonical_search_parallel(
+    distance: NDArray[np.float32],
+    R: NDArray[np.float32],
+    obsolete: NDArray[np.bool_],
+    n_remaining: np.uintp,
+    n_original: np.uintp,
+) -> tuple[np.uintp, np.uintp]:
+    """Search for the closest pair of neighbouring nodes to join."""
+    # Partially compute outside loop.
+    coefficient = float32(n_remaining - 2)
+
+    # Number of available threads.
+    n_threads = get_num_threads()
+
+    # Arrays to store thread results.
+    results_q_xy = np.empty(n_threads, dtype=np.float32)
+    results_xy = np.empty((n_threads, 2), dtype=np.uintp)
+
+    # Set up parallel threads.
+    for t in prange(n_threads):
+        # Thread local variables.
+        local_q_xy = FLOAT32_INF
+        local_x = UINTP_MAX
+        local_y = UINTP_MAX
+
+        # Iterate over rows of the distance matrix, striped work distribution.
+        for _i in range(t, n_original, n_threads):
+            i = np.uintp(_i)  # use unsigned int for faster indexing
+
+            # Check if row is still in use.
+            if obsolete[i]:
+                continue
+
+            # Access divergence for current row.
+            r_i = R[i]
+
+            # Compute offset into condensed distance matrix.
+            _offset = condensed_offset(_i, n_original)
+
+            # Iterate over columns of the distance matrix upper triangle.
+            for _j in range(i + 1, n_original):
+                j = np.uintp(_j)  # use unsigned int for faster indexing
+
+                # Check if column is still in use.
+                if obsolete[j]:
+                    continue
+
+                # Access divergence for the current column.
+                r_j = R[j]
+
+                # Compute index into condensed distance matrix.
+                c = np.uintp(_offset + _j)
+
+                # Compute join criterion.
+                d = distance[c]
+                q = coefficient * d - r_i - r_j
+
+                if q < local_q_xy:
+                    # Found new global minimum.
+                    local_q_xy = q
+                    local_x = i
+                    local_y = j
+
+        results_q_xy[t] = local_q_xy
+        results_xy[t, 0] = local_x
+        results_xy[t, 1] = local_y
+
+    # Final reduction across thread results.
+    q_xy = FLOAT32_INF
+    x = UINTP_MAX
+    y = UINTP_MAX
+    for t in range(n_threads):
+        q = results_q_xy[t]
+        if q < q_xy:
+            q_xy = q
+            x = results_xy[t, 0]
+            y = results_xy[t, 1]
 
     return x, y
 
@@ -232,6 +329,7 @@ def canonical_update(
         float32[:, ::1],  # Z
         uintp,  # n_original
         bool_,  # disallow_negative_distances
+        bool_,  # parallel
     ),
     nogil=NOGIL,
     fastmath=FASTMATH,
@@ -247,6 +345,7 @@ def canonical_iteration(
     Z: NDArray[np.float32],
     n_original: np.uintp,
     disallow_negative_distances: bool,
+    parallel: bool,
 ) -> None:
     # This will be the identifier for the new node to be created in this iteration.
     parent = iteration + n_original
@@ -256,13 +355,22 @@ def canonical_iteration(
 
     if n_remaining > 2:
         # Search for the closest pair of nodes to join.
-        x, y = canonical_search(
-            distance=distance,
-            R=R,
-            obsolete=obsolete,
-            n_remaining=n_remaining,
-            n_original=n_original,
-        )
+        if parallel:
+            x, y = canonical_search_parallel(
+                distance=distance,
+                R=R,
+                obsolete=obsolete,
+                n_remaining=n_remaining,
+                n_original=n_original,
+            )
+        else:
+            x, y = canonical_search(
+                distance=distance,
+                R=R,
+                obsolete=obsolete,
+                n_remaining=n_remaining,
+                n_original=n_original,
+            )
         # TODO return d_xy
 
         # Calculate distances to the new internal node.
