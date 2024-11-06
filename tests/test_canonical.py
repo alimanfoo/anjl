@@ -5,12 +5,13 @@ from scipy.spatial.distance import squareform  # type: ignore
 import pytest
 
 
-def test_example_1():
+@pytest.mark.parametrize("parallel", [False, True])
+def test_example_1(parallel):
     # This is example 1 from Amelia Harrison's blog.
     # https://www.tenderisthebyte.com/blog/2022/08/31/neighbor-joining-trees/
 
     D, _ = anjl.data.example_1()
-    Z = anjl.canonical_nj(D)
+    Z = anjl.canonical_nj(D, parallel=parallel)
     validate_nj_result(Z, D)
 
     # First iteration.
@@ -49,15 +50,16 @@ def test_example_1():
     # Check condensed.
     dist = squareform(D)
     assert dist.ndim == 1
-    Zc = anjl.canonical_nj(dist)
+    Zc = anjl.canonical_nj(dist, parallel=parallel)
     assert_allclose(Z, Zc)
 
 
-def test_wikipedia_example():
+@pytest.mark.parametrize("parallel", [False, True])
+def test_wikipedia_example(parallel):
     # This example comes from the wikipedia page on neighbour-joining.
     # https://en.wikipedia.org/wiki/Neighbor_joining#Example
     D, _ = anjl.data.wikipedia_example()
-    Z = anjl.canonical_nj(D)
+    Z = anjl.canonical_nj(D, parallel=parallel)
     validate_nj_result(Z, D)
 
     # First iteration.
@@ -77,19 +79,20 @@ def test_wikipedia_example():
     # Check condensed.
     dist = squareform(D)
     assert dist.ndim == 1
-    Zc = anjl.canonical_nj(dist)
+    Zc = anjl.canonical_nj(dist, parallel=parallel)
     assert_allclose(Z, Zc)
 
 
+@pytest.mark.parametrize("parallel", [False, True])
 @pytest.mark.parametrize("copy", numpy_copy_options)
-def test_mosquitoes(copy):
+def test_mosquitoes(parallel, copy):
     D, _ = anjl.data.mosquitoes()
-    Z = anjl.canonical_nj(D, copy=copy)
+    Z = anjl.canonical_nj(D, parallel=parallel, copy=copy)
     validate_nj_result(Z, D)
 
     # Check condensed.
     D, _ = anjl.data.mosquitoes()
     dist = squareform(D)
     assert dist.ndim == 1
-    Zc = anjl.canonical_nj(dist, copy=copy)
+    Zc = anjl.canonical_nj(dist, parallel=parallel, copy=copy)
     assert_allclose(Z, Zc)
