@@ -81,11 +81,12 @@ def wikipedia_example() -> tuple[params.D, params.leaf_data]:
 def mosquitoes() -> tuple[params.D, params.leaf_data]:
     """This dataset contains genetic distances between mosquitoes sequenced by the
     Anopheles gambiae 1000 Genomes Project."""
-    import importlib.resources
+    from importlib.resources import files, as_file
     from . import resources
 
-    with importlib.resources.path(resources, "mosquitoes.npy") as dist_path:
+    root = files(resources)
+    with as_file(root / "mosquitoes.npy") as dist_path:
         dist = np.load(dist_path)
-    with importlib.resources.path(resources, "mosquitoes.csv") as leaf_data_path:
+    with as_file(root / "mosquitoes.csv") as leaf_data_path:
         leaf_data = pd.read_csv(leaf_data_path)
     return dist, leaf_data
