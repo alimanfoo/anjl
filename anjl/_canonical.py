@@ -241,11 +241,17 @@ def canonical_search_parallel(
         results_xy[t, 1] = local_y
 
     # Final reduction across thread results.
-    t_best = np.argmin(results_q_xy)
-    global_x = results_xy[t_best, 0]
-    global_y = results_xy[t_best, 1]
+    q_xy = FLOAT32_INF
+    x = UINTP_MAX
+    y = UINTP_MAX
+    for t in range(n_threads):
+        q = results_q_xy[t]
+        if q < q_xy:
+            q_xy = q
+            x = results_xy[t, 0]
+            y = results_xy[t, 1]
 
-    return global_x, global_y
+    return x, y
 
 
 @njit(
