@@ -38,7 +38,7 @@ def dynamic_nj(
     progress: params.progress = None,
     progress_options: params.progress_options = {},
     copy: params.copy = True,
-    parallel: params.parallel = True,
+    parallel: params.parallel = False,
 ) -> params.Z:
     # Set up the distance matrix, ensure it is in condensed form.
     distance, n_original = ensure_condensed_distance(D=D, copy=copy)
