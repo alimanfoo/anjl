@@ -1,14 +1,15 @@
 import numpy as np
 from numpy.typing import NDArray
 
-from numba import njit, uintp, float32, bool_
+from numba import njit, uintp, float32, bool_, get_num_threads, prange
 from numpydoc_decorator import doc
 from . import params
 from ._util import (
-    NOGIL,
-    FASTMATH,
-    ERROR_MODEL,
-    BOUNDSCHECK,
+    NUMBA_NOGIL,
+    NUMBA_FASTMATH,
+    NUMBA_ERROR_MODEL,
+    NUMBA_BOUNDSCHECK,
+    NUMBA_CACHE,
     FLOAT32_INF,
     UINTP_MAX,
     ensure_condensed_distance,
@@ -38,6 +39,7 @@ def dynamic_nj(
     progress: params.progress = None,
     progress_options: params.progress_options = {},
     copy: params.copy = True,
+    parallel: params.parallel = True,
 ) -> params.Z:
     # Set up the distance matrix, ensure it is in condensed form.
     distance, n_original = ensure_condensed_distance(D=D, copy=copy)
@@ -95,6 +97,7 @@ def dynamic_nj(
             Z=Z,
             n_original=np.uintp(n_original),
             disallow_negative_distances=disallow_negative_distances,
+            parallel=parallel,
         )
 
     return Z
@@ -110,10 +113,11 @@ def dynamic_nj(
         bool_,  # disallow_negative_distances
         uintp,  # n_original
     ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
+    cache=NUMBA_CACHE,
 )
 def dynamic_init(
     distance: NDArray[np.float32],
@@ -256,10 +260,11 @@ def dynamic_init(
         float32,  # coefficient
         uintp,  # n_original
     ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
+    cache=NUMBA_CACHE,
 )
 def search_row(
     distance: NDArray[np.float32],
@@ -317,10 +322,11 @@ def search_row(
         uintp,  # n_remaining
         uintp,  # n_original
     ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
+    cache=NUMBA_CACHE,
 )
 def dynamic_search(
     distance: NDArray[np.float32],
@@ -333,18 +339,13 @@ def dynamic_search(
 ):
     """Search for the closest pair of neighbouring nodes to join."""
 
-    # Distance between pair of nodes with global minimum.
-    d_xy = FLOAT32_INF
-
-    # Global minimum join criterion.
-    q_xy = FLOAT32_INF
-
-    # Indices of the pair of nodes with the global minimum, to be joined.
-    x = UINTP_MAX
-    y = UINTP_MAX
-
     # Partially compute outside loop.
     coefficient = np.float32(n_remaining - 2)
+
+    # x, y - Row/column indices of the pair of nodes with the global minimum, to be
+    # joined.
+    # q_xy - Global minimum join criterion.
+    # d_xy - Distance between pair of nodes with global minimum.
 
     # First scan the new row at index z and use as starting point for search.
     x = z
@@ -358,7 +359,7 @@ def dynamic_search(
         n_original=n_original,
     )
 
-    # Iterate over rows of the distance matrix.
+    # Iterate over all rows of the distance matrix.
     for _i in range(n_original):
         i = np.uintp(_i)  # row index
 
@@ -366,7 +367,7 @@ def dynamic_search(
             continue
 
         if i == z:
-            # Already scanned above.
+            # Already searched.
             continue
 
         if i < z:
@@ -409,6 +410,133 @@ def dynamic_search(
 
 
 @njit(
+    (
+        float32[::1],  # distance
+        float32[::1],  # R
+        float32[::1],  # Q
+        uintp,  # z
+        bool_[::1],  # obsolete
+        uintp,  # n_remaining
+        uintp,  # n_original
+    ),
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
+    # cache=NUMBA_CACHE,  # warning that cannot cache, though not clear why
+    parallel=True,
+)
+def dynamic_search_parallel(
+    distance: NDArray[np.float32],
+    R: NDArray[np.float32],
+    Q: NDArray[np.float32],
+    z: np.uintp,  # index of new node created in previous iteration
+    obsolete: NDArray[np.bool_],
+    n_remaining: np.uintp,
+    n_original: np.uintp,
+):
+    """Search for the closest pair of neighbouring nodes to join."""
+
+    # Partially compute outside loop.
+    coefficient = np.float32(n_remaining - 2)
+
+    # First scan the new row at index z and use as starting point for search.
+    global_x = z
+    global_y, global_q_xy, global_d_xy = search_row(
+        distance=distance,
+        R=R,
+        Q=Q,
+        obsolete=obsolete,
+        i=z,
+        coefficient=coefficient,
+        n_original=n_original,
+    )
+
+    # Prepare for parallel search.
+    n_threads = get_num_threads()
+    results_q_xy = np.empty(n_threads, dtype=np.float32)
+    results_d_xy = np.empty(n_threads, dtype=np.float32)
+    results_xy = np.empty((n_threads, 2), dtype=np.uintp)
+
+    # Set up parallel threads.
+    for t in prange(n_threads):
+        # Thread local variables.
+        local_q_xy = global_q_xy
+        local_d_xy = global_d_xy
+        local_x = global_x
+        local_y = global_y
+
+        # Iterate over rows of the distance matrix.
+        # Striped work distribution.
+        for _i in range(t, n_original, n_threads):
+            i = np.uintp(_i)  # row index
+
+            if obsolete[i]:
+                continue
+
+            if i == z:
+                # Already searched.
+                continue
+
+            # Previous row minimum.
+            q_i = Q[i]
+
+            if i < z:
+                # Calculate join criterion for the new node, and update Q if necessary.
+                r_i = R[i]
+                r_z = R[z]
+                c_iz = condensed_index(i, z, n_original)
+                d_iz = distance[c_iz]
+                q_iz = coefficient * d_iz - r_i - r_z
+                if q_iz < q_i:
+                    Q[i] = q_iz
+
+            if q_i > global_q_xy:
+                # We can skip this row. The previous row optimum join criterion is greater
+                # than the current global optimum, and so there is now way that this row
+                # can contain a better match. This is the core optimisation of the dynamic
+                # algorithm.
+                continue
+
+            # Join criterion could be lower than the current global minimum. Fully search
+            # the row.
+            j, q_ij, d_ij = search_row(
+                distance=distance,
+                R=R,
+                Q=Q,
+                obsolete=obsolete,
+                i=i,
+                coefficient=coefficient,
+                n_original=n_original,
+            )
+
+            if q_ij < local_q_xy:
+                # Found new minimum.
+                local_q_xy = q_ij
+                local_d_xy = d_ij
+                local_x = i
+                local_y = j
+
+                # Share update between threads, in case it helps other threads skip
+                # more rows. This is a supported parallel reduction.
+                global_q_xy = min(global_q_xy, local_q_xy)
+
+        # Store results for this thread.
+        results_q_xy[t] = local_q_xy
+        results_d_xy[t] = local_d_xy
+        results_xy[t, 0] = local_x
+        results_xy[t, 1] = local_y
+
+    # Final reduction across thread results.
+    t_best = np.argmin(results_q_xy)
+    global_d_xy = results_d_xy[t_best]
+    global_x = results_xy[t_best, 0]
+    global_y = results_xy[t_best, 1]
+
+    return global_x, global_y, global_d_xy
+
+
+@njit(
     uintp(
         float32[::1],  # distance
         float32[::1],  # R
@@ -420,10 +548,11 @@ def dynamic_search(
         float32,  # d_xy
         uintp,  # n_original
     ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
+    cache=NUMBA_CACHE,
 )
 def dynamic_update(
     distance: NDArray[np.float32],
@@ -481,6 +610,79 @@ def dynamic_update(
 
 @njit(
     uintp(
+        float32[::1],  # distance
+        float32[::1],  # R
+        uintp[::1],  # index_to_id
+        bool_[::1],  # obsolete
+        uintp,  # parent
+        uintp,  # x
+        uintp,  # y
+        float32,  # d_xy
+        uintp,  # n_original
+    ),
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
+    cache=NUMBA_CACHE,
+    parallel=True,
+)
+def dynamic_update_parallel(
+    distance: NDArray[np.float32],
+    R: NDArray[np.float32],
+    index_to_id: NDArray[np.uintp],
+    obsolete: NDArray[np.bool_],
+    parent: np.uintp,
+    x: np.uintp,
+    y: np.uintp,
+    d_xy: np.float32,
+    n_original: np.uintp,
+) -> np.uintp:
+    # Here we obsolete the row and column corresponding to the node at y, and we
+    # reuse the row and column at x for the new node.
+    obsolete[y] = True
+
+    # Row index to be used for the new node.
+    z = x
+
+    # Node identifier.
+    index_to_id[z] = parent
+
+    # Initialize divergence for the new node.
+    r_z = float32(0)
+
+    # Update distances and divergence.
+    for _k in prange(n_original):
+        k = np.uintp(_k)
+
+        if obsolete[k] or k == x or k == y:
+            continue
+
+        # Calculate and store distance from k to the new node.
+        c_kx = condensed_index(k, x, n_original)
+        d_kx = distance[c_kx]
+        c_ky = condensed_index(k, y, n_original)
+        d_ky = distance[c_ky]
+        d_kz = float32(0.5) * (d_kx + d_ky - d_xy)
+        c_kz = c_kx
+        distance[c_kz] = d_kz
+
+        # Subtract out the distances for the nodes that have just been joined and add
+        # in distance for the new node.
+        r_k = R[k] - d_kx - d_ky + d_kz
+        R[k] = r_k
+
+        # Accumulate divergence for the new node.
+        r_z += d_kz
+
+    # Assign divergence for the new node.
+    R[z] = r_z
+
+    return z
+
+
+@njit(
+    uintp(
         uintp,  # iteration
         float32[::1],  # distance
         float32[::1],  # R
@@ -491,11 +693,13 @@ def dynamic_update(
         float32[:, ::1],  # Z
         uintp,  # n_original
         bool_,  # disallow_negative_distances
+        bool_,  # parallel
     ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
+    # cache=NUMBA_CACHE,  # warning that cannot cache, though not clear why
 )
 def dynamic_iteration(
     iteration: np.uintp,
@@ -508,6 +712,7 @@ def dynamic_iteration(
     Z: NDArray[np.float32],
     n_original: np.uintp,
     disallow_negative_distances: bool,
+    parallel: bool,
 ) -> np.uintp:
     # This will be the identifier for the new node to be created in this iteration.
     parent = iteration + n_original
@@ -517,15 +722,26 @@ def dynamic_iteration(
 
     if n_remaining > 2:
         # Search for the closest pair of nodes to join.
-        x, y, d_xy = dynamic_search(
-            distance=distance,
-            R=R,
-            Q=Q,
-            z=previous_z,
-            obsolete=obsolete,
-            n_remaining=n_remaining,
-            n_original=n_original,
-        )
+        if parallel:
+            x, y, d_xy = dynamic_search_parallel(
+                distance=distance,
+                R=R,
+                Q=Q,
+                z=previous_z,
+                obsolete=obsolete,
+                n_remaining=n_remaining,
+                n_original=n_original,
+            )
+        else:
+            x, y, d_xy = dynamic_search(
+                distance=distance,
+                R=R,
+                Q=Q,
+                z=previous_z,
+                obsolete=obsolete,
+                n_remaining=n_remaining,
+                n_original=n_original,
+            )
 
         # Calculate distances to the new internal node.
         d_xz = 0.5 * (d_xy + (1 / (n_remaining - 2)) * (R[x] - R[y]))
@@ -586,17 +802,30 @@ def dynamic_iteration(
 
     if n_remaining > 2:
         # Update data structures.
-        new_z: np.uintp = dynamic_update(
-            distance=distance,
-            R=R,
-            index_to_id=index_to_id,
-            obsolete=obsolete,
-            parent=parent,
-            x=x,
-            y=y,
-            d_xy=d_xy,
-            n_original=n_original,
-        )
+        if parallel:
+            new_z: np.uintp = dynamic_update_parallel(
+                distance=distance,
+                R=R,
+                index_to_id=index_to_id,
+                obsolete=obsolete,
+                parent=parent,
+                x=x,
+                y=y,
+                d_xy=d_xy,
+                n_original=n_original,
+            )
+        else:
+            new_z = dynamic_update(
+                distance=distance,
+                R=R,
+                index_to_id=index_to_id,
+                obsolete=obsolete,
+                parent=parent,
+                x=x,
+                y=y,
+                d_xy=d_xy,
+                n_original=n_original,
+            )
 
     else:
         new_z = UINTP_MAX

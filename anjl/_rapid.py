@@ -4,10 +4,11 @@ from numba import njit, uintp, float32, bool_, void
 from numpydoc_decorator import doc
 from . import params
 from ._util import (
-    NOGIL,
-    FASTMATH,
-    ERROR_MODEL,
-    BOUNDSCHECK,
+    NUMBA_NOGIL,
+    NUMBA_FASTMATH,
+    NUMBA_ERROR_MODEL,
+    NUMBA_BOUNDSCHECK,
+    NUMBA_CACHE,
     FLOAT32_INF,
     UINTP_MAX,
     ensure_square_distance,
@@ -139,10 +140,11 @@ def rapid_nj(
 
 @njit(
     (float32[:, :],),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
+    cache=NUMBA_CACHE,
 )
 def rapid_setup_distance(D: NDArray[np.float32]):
     # Set the diagonal and upper triangle to inf so we can skip self-comparisons and
@@ -168,10 +170,11 @@ def rapid_setup_distance(D: NDArray[np.float32]):
         uintp[:],  # id_to_index
         bool_[:],  # clustered
     ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
+    cache=NUMBA_CACHE,
 )
 def rapid_update_r_max(
     parent: np.uintp,
@@ -200,10 +203,11 @@ def rapid_update_r_max(
         bool_[:],  # obsolete
         uintp,  # n_remaining
     ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
+    cache=NUMBA_CACHE,
 )
 def rapid_gc(
     D_sorted: NDArray[np.float32],
@@ -244,10 +248,11 @@ def rapid_gc(
         uintp,  # n_remaining
         float32[:],  # R_max
     ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
+    cache=NUMBA_CACHE,
 )
 def rapid_search(
     D_sorted: NDArray[np.float32],
@@ -348,10 +353,11 @@ def rapid_search(
         float32,  # d_xy
         float32[:],  # R_max
     ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
+    cache=NUMBA_CACHE,
 )
 def rapid_update(
     D: NDArray[np.float32],
@@ -456,10 +462,11 @@ def rapid_update(
         bool_,  # disallow_negative_distances
         float32[:],  # R_max
     ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
+    cache=NUMBA_CACHE,
 )
 def rapid_iteration(
     iteration: int,
