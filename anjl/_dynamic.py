@@ -586,7 +586,7 @@ def dynamic_iteration(
 
     if n_remaining > 2:
         # Update data structures.
-        new_z = dynamic_update(
+        new_z: np.uintp = dynamic_update(
             distance=distance,
             R=R,
             index_to_id=index_to_id,

@@ -189,7 +189,8 @@ def ensure_square_distance(
 
     elif D.ndim == 1:
         validate_condensed(D)
-        return condensed_to_square(D)
+        square: NDArray[np.float32] = condensed_to_square(D)
+        return square
 
     else:
         raise TypeError("D has too many dimensions.")
@@ -203,17 +204,17 @@ def ensure_condensed_distance(
         # Assume that D is already a condensed distance matrix in scipy (upper triangle)
         # layout.
         n_original = validate_condensed(D)
-        distance = np.array(D, copy=copy, dtype=np.float32)
+        condensed = np.array(D, copy=copy, dtype=np.float32)
 
     elif D.ndim == 2:
         validate_square(D)
         n_original = D.shape[0]
-        distance = square_to_condensed(D)
+        condensed = square_to_condensed(D)
 
     else:
         raise TypeError("D has too many dimensions.")
 
-    return distance, n_original
+    return condensed, n_original
 
 
 @njit(
@@ -260,6 +261,7 @@ def condensed_index(i: np.intp, j: np.intp, n: np.intp) -> np.intp:
     if i > j:
         i, j = j, i  # upper triangle only
     c = (n * i) - (i * (i + 1) // 2) - 1 - i + j
+
     return c
 
 
