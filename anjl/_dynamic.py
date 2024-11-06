@@ -355,38 +355,22 @@ def dynamic_search(
         n_original=n_original,
     )
 
-    # Next update the other rows above z in case the new node at z has created a lower
-    # join criterion.
-    for _i in range(z):
-        i = np.uintp(_i)  # row index
-
-        if obsolete[i]:
-            continue
-
-        # Calculate join criterion for the new node.
-        r_i = R[i]
-        r_z = R[z]
-        c_iz = condensed_index(i, z, n_original)
-        d_iz = distance[c_iz]
-        q_iz = coefficient * d_iz - r_i - r_z
-
-        # Update Q if necessary.
-        if q_iz < Q[i]:
-            Q[i] = q_iz
-
-        # Update the global minimum, in case it allows more rows to be skipped.
-        if q_iz < q_xy:
-            q_xy = q_iz
-            d_xy = d_iz
-            x = i
-            y = z
-
-    # Finally, iterate over all rows of the distance matrix.
+    # Iterate over all rows of the distance matrix.
     for _i in range(n_original):
         i = np.uintp(_i)  # row index
 
         if i == z or obsolete[i]:
             continue
+
+        if i < z:
+            # Calculate join criterion for the new node, and update Q if necessary.
+            r_i = R[i]
+            r_z = R[z]
+            c_iz = condensed_index(i, z, n_original)
+            d_iz = distance[c_iz]
+            q_iz = coefficient * d_iz - r_i - r_z
+            if q_iz < Q[i]:
+                Q[i] = q_iz
 
         if Q[i] > q_xy:
             # We can skip this row. The previous row optimum join criterion is greater
