@@ -6,18 +6,18 @@ from . import params
 
 
 # Common configuration for numba jitted functions.
-NOGIL = True
-FASTMATH = False  # setting True actually seems to slow things down
-ERROR_MODEL = "numpy"
+NUMBA_NOGIL = True
+NUMBA_FASTMATH = False  # setting True actually seems to slow things down
+NUMBA_ERROR_MODEL = "numpy"
 # Detect whether we are running via pytest, if so run with boundscheck enabled to catch
 # any out of bounds errors.
 # https://docs.pytest.org/en/stable/example/simple.html#detect-if-running-from-within-a-pytest-run
 if os.environ.get("PYTEST_VERSION") is not None:
-    BOUNDSCHECK = True
+    NUMBA_BOUNDSCHECK = True
     os.environ["NUMBA_DEVELOPER_MODE"] = "1"
 else:
-    BOUNDSCHECK = False
-
+    NUMBA_BOUNDSCHECK = False
+NUMBA_CACHE = True
 
 # Convenience constants.
 UINTP_MAX = np.uintp(np.iinfo(np.uintp).max)
@@ -101,10 +101,10 @@ def map_internal_to_leaves(Z: params.Z) -> list[list[int]]:
     float32[::1](
         float32[:, :],
     ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
 )
 def square_to_condensed(D: NDArray[np.float32]) -> NDArray[np.float32]:
     """Convert a square distance matrix into a condensed distance matrix in upper
@@ -133,10 +133,10 @@ def square_to_condensed(D: NDArray[np.float32]) -> NDArray[np.float32]:
     float32[:, ::1](
         float32[:],
     ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
 )
 def condensed_to_square(distance: NDArray[np.float32]) -> NDArray[np.float32]:
     """Convert a square distance matrix into a condensed distance matrix in upper
@@ -222,10 +222,10 @@ def ensure_condensed_distance(
         float32[::1],
         uintp,
     ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
 )
 def setup_divergence(distance, n_original):
     # R is the row sum of distances, i.e., for each node, the sum of distances to all
@@ -249,10 +249,10 @@ def setup_divergence(distance, n_original):
         intp,  # j
         intp,  # n
     ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
     inline="always",
 )
 def condensed_index(i: np.intp, j: np.intp, n: np.intp) -> np.intp:
@@ -270,10 +270,10 @@ def condensed_index(i: np.intp, j: np.intp, n: np.intp) -> np.intp:
         intp,  # i
         intp,  # n
     ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
     inline="always",
 )
 def condensed_offset(i: np.intp, n: np.intp) -> np.intp:

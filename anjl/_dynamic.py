@@ -5,10 +5,11 @@ from numba import njit, uintp, float32, bool_, get_num_threads, prange
 from numpydoc_decorator import doc
 from . import params
 from ._util import (
-    NOGIL,
-    FASTMATH,
-    ERROR_MODEL,
-    BOUNDSCHECK,
+    NUMBA_NOGIL,
+    NUMBA_FASTMATH,
+    NUMBA_ERROR_MODEL,
+    NUMBA_BOUNDSCHECK,
+    NUMBA_CACHE,
     FLOAT32_INF,
     UINTP_MAX,
     ensure_condensed_distance,
@@ -38,7 +39,7 @@ def dynamic_nj(
     progress: params.progress = None,
     progress_options: params.progress_options = {},
     copy: params.copy = True,
-    parallel: params.parallel = False,
+    parallel: params.parallel = True,
 ) -> params.Z:
     # Set up the distance matrix, ensure it is in condensed form.
     distance, n_original = ensure_condensed_distance(D=D, copy=copy)
@@ -112,10 +113,11 @@ def dynamic_nj(
         bool_,  # disallow_negative_distances
         uintp,  # n_original
     ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
+    cache=NUMBA_CACHE,
 )
 def dynamic_init(
     distance: NDArray[np.float32],
@@ -258,10 +260,11 @@ def dynamic_init(
         float32,  # coefficient
         uintp,  # n_original
     ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
+    cache=NUMBA_CACHE,
 )
 def search_row(
     distance: NDArray[np.float32],
@@ -319,10 +322,11 @@ def search_row(
         uintp,  # n_remaining
         uintp,  # n_original
     ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
+    cache=NUMBA_CACHE,
 )
 def dynamic_search(
     distance: NDArray[np.float32],
@@ -415,10 +419,11 @@ def dynamic_search(
         uintp,  # n_remaining
         uintp,  # n_original
     ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
+    # cache=NUMBA_CACHE,  # cannot cache, though not clear why
     parallel=True,
 )
 def dynamic_search_parallel(
@@ -543,10 +548,11 @@ def dynamic_search_parallel(
         float32,  # d_xy
         uintp,  # n_original
     ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
+    cache=NUMBA_CACHE,
 )
 def dynamic_update(
     distance: NDArray[np.float32],
@@ -604,6 +610,79 @@ def dynamic_update(
 
 @njit(
     uintp(
+        float32[::1],  # distance
+        float32[::1],  # R
+        uintp[::1],  # index_to_id
+        bool_[::1],  # obsolete
+        uintp,  # parent
+        uintp,  # x
+        uintp,  # y
+        float32,  # d_xy
+        uintp,  # n_original
+    ),
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
+    cache=NUMBA_CACHE,
+    parallel=True,
+)
+def dynamic_update_parallel(
+    distance: NDArray[np.float32],
+    R: NDArray[np.float32],
+    index_to_id: NDArray[np.uintp],
+    obsolete: NDArray[np.bool_],
+    parent: np.uintp,
+    x: np.uintp,
+    y: np.uintp,
+    d_xy: np.float32,
+    n_original: np.uintp,
+) -> np.uintp:
+    # Here we obsolete the row and column corresponding to the node at y, and we
+    # reuse the row and column at x for the new node.
+    obsolete[y] = True
+
+    # Row index to be used for the new node.
+    z = x
+
+    # Node identifier.
+    index_to_id[z] = parent
+
+    # Initialize divergence for the new node.
+    r_z = float32(0)
+
+    # Update distances and divergence.
+    for _k in prange(n_original):
+        k = np.uintp(_k)
+
+        if obsolete[k] or k == x or k == y:
+            continue
+
+        # Calculate and store distance from k to the new node.
+        c_kx = condensed_index(k, x, n_original)
+        d_kx = distance[c_kx]
+        c_ky = condensed_index(k, y, n_original)
+        d_ky = distance[c_ky]
+        d_kz = float32(0.5) * (d_kx + d_ky - d_xy)
+        c_kz = c_kx
+        distance[c_kz] = d_kz
+
+        # Subtract out the distances for the nodes that have just been joined and add
+        # in distance for the new node.
+        r_k = R[k] - d_kx - d_ky + d_kz
+        R[k] = r_k
+
+        # Accumulate divergence for the new node.
+        r_z += d_kz
+
+    # Assign divergence for the new node.
+    R[z] = r_z
+
+    return z
+
+
+@njit(
+    uintp(
         uintp,  # iteration
         float32[::1],  # distance
         float32[::1],  # R
@@ -616,10 +695,11 @@ def dynamic_update(
         bool_,  # disallow_negative_distances
         bool_,  # parallel
     ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
+    # cache=NUMBA_CACHE,
 )
 def dynamic_iteration(
     iteration: np.uintp,
@@ -722,17 +802,30 @@ def dynamic_iteration(
 
     if n_remaining > 2:
         # Update data structures.
-        new_z: np.uintp = dynamic_update(
-            distance=distance,
-            R=R,
-            index_to_id=index_to_id,
-            obsolete=obsolete,
-            parent=parent,
-            x=x,
-            y=y,
-            d_xy=d_xy,
-            n_original=n_original,
-        )
+        if parallel:
+            new_z: np.uintp = dynamic_update_parallel(
+                distance=distance,
+                R=R,
+                index_to_id=index_to_id,
+                obsolete=obsolete,
+                parent=parent,
+                x=x,
+                y=y,
+                d_xy=d_xy,
+                n_original=n_original,
+            )
+        else:
+            new_z = dynamic_update(
+                distance=distance,
+                R=R,
+                index_to_id=index_to_id,
+                obsolete=obsolete,
+                parent=parent,
+                x=x,
+                y=y,
+                d_xy=d_xy,
+                n_original=n_original,
+            )
 
     else:
         new_z = UINTP_MAX

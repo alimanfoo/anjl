@@ -4,10 +4,11 @@ from numba import njit, uintp, float32, bool_, void, prange, get_num_threads
 from numpydoc_decorator import doc
 from . import params
 from ._util import (
-    NOGIL,
-    FASTMATH,
-    ERROR_MODEL,
-    BOUNDSCHECK,
+    NUMBA_NOGIL,
+    NUMBA_FASTMATH,
+    NUMBA_ERROR_MODEL,
+    NUMBA_BOUNDSCHECK,
+    NUMBA_CACHE,
     FLOAT32_INF,
     UINTP_MAX,
     ensure_condensed_distance,
@@ -91,10 +92,11 @@ def canonical_nj(
         uintp,  # n_remaining
         uintp,  # n_original
     ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
+    cache=NUMBA_CACHE,
 )
 def canonical_search(
     distance: NDArray[np.float32],
@@ -163,10 +165,11 @@ def canonical_search(
         uintp,  # n_remaining
         uintp,  # n_original
     ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
+    # cache=NUMBA_CACHE,
     parallel=True,
 )
 def canonical_search_parallel(
@@ -257,10 +260,11 @@ def canonical_search_parallel(
         float32,  # d_xy
         uintp,  # n_original
     ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
+    cache=NUMBA_CACHE,
 )
 def canonical_update(
     distance: NDArray[np.float32],
@@ -326,10 +330,11 @@ def canonical_update(
         bool_,  # disallow_negative_distances
         bool_,  # parallel
     ),
-    nogil=NOGIL,
-    fastmath=FASTMATH,
-    error_model=ERROR_MODEL,
-    boundscheck=BOUNDSCHECK,
+    nogil=NUMBA_NOGIL,
+    fastmath=NUMBA_FASTMATH,
+    error_model=NUMBA_ERROR_MODEL,
+    boundscheck=NUMBA_BOUNDSCHECK,
+    # cache=NUMBA_CACHE,
 )
 def canonical_iteration(
     iteration: np.uintp,
