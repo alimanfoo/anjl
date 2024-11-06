@@ -8,7 +8,12 @@ import plotly.graph_objects as go
 
 D: TypeAlias = Annotated[
     NDArray,
-    "A distance matrix in square form.",
+    """
+    A distance matrix, either in square form, or condensed upper triangle form (e.g., as
+    returned by scipy's pdist function). To minimise memory usage, provide a condensed
+    distance matrix, and also pass copy=False, although be aware that the input data
+    will be overwritten during tree construction.
+    """,
 ]
 
 Z: TypeAlias = Annotated[
@@ -47,7 +52,8 @@ copy: TypeAlias = Annotated[
     """
     Passed through to numpy.array(). For numpy version 2.0 and later, if True (default),
     then the array data is copied. If None, a copy will only be made if necessary. If
-    False it raises a ValueError if a copy cannot be avoided.
+    False it raises a ValueError if a copy cannot be avoided. If False, please note that
+    the input data will be overwritten during tree construction.
     """,
 ]
 

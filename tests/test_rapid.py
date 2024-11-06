@@ -1,6 +1,7 @@
 import anjl
 from anjl.testing import validate_nj_result, numpy_copy_options
 from numpy.testing import assert_allclose
+from scipy.spatial.distance import squareform  # type: ignore
 import pytest
 
 
@@ -26,6 +27,12 @@ def test_example_1():
     # Further iterations cannot be tested because there are
     # different ways the remaining nodes could be joined.
 
+    # Check condensed.
+    dist = squareform(D)
+    assert dist.ndim == 1
+    Zc = anjl.rapid_nj(dist)
+    assert_allclose(Z, Zc)
+
 
 def test_wikipedia_example():
     # This example comes from the wikipedia page on neighbour-joining.
@@ -49,9 +56,22 @@ def test_wikipedia_example():
     # Further iterations cannot be tested because there are
     # different ways the remaining nodes could be joined.
 
+    # Check condensed.
+    dist = squareform(D)
+    assert dist.ndim == 1
+    Zc = anjl.rapid_nj(dist)
+    assert_allclose(Z, Zc)
+
 
 @pytest.mark.parametrize("copy", numpy_copy_options)
 def test_mosquitoes(copy):
     D, _ = anjl.data.mosquitoes()
     Z = anjl.rapid_nj(D, copy=copy)
     validate_nj_result(Z, D)
+
+    # Check condensed.
+    D, _ = anjl.data.mosquitoes()
+    dist = squareform(D)
+    assert dist.ndim == 1
+    Zc = anjl.rapid_nj(dist, copy=copy)
+    assert_allclose(Z, Zc)
