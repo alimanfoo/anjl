@@ -8,7 +8,7 @@ from ._util import (
     NUMBA_FASTMATH,
     NUMBA_ERROR_MODEL,
     NUMBA_BOUNDSCHECK,
-    # NUMBA_CACHE,
+    NUMBA_CACHE,
     FLOAT32_INF,
     UINTP_MAX,
     ensure_square_distance,
@@ -144,7 +144,7 @@ def rapid_nj(
     fastmath=NUMBA_FASTMATH,
     error_model=NUMBA_ERROR_MODEL,
     boundscheck=NUMBA_BOUNDSCHECK,
-    # cache=NUMBA_CACHE,
+    cache=NUMBA_CACHE,
 )
 def rapid_setup_distance(D: NDArray[np.float32]):
     # Set the diagonal and upper triangle to inf so we can skip self-comparisons and
@@ -174,7 +174,7 @@ def rapid_setup_distance(D: NDArray[np.float32]):
     fastmath=NUMBA_FASTMATH,
     error_model=NUMBA_ERROR_MODEL,
     boundscheck=NUMBA_BOUNDSCHECK,
-    # cache=NUMBA_CACHE,
+    cache=NUMBA_CACHE,
 )
 def rapid_update_r_max(
     parent: np.uintp,
@@ -207,7 +207,7 @@ def rapid_update_r_max(
     fastmath=NUMBA_FASTMATH,
     error_model=NUMBA_ERROR_MODEL,
     boundscheck=NUMBA_BOUNDSCHECK,
-    # cache=NUMBA_CACHE,
+    cache=NUMBA_CACHE,
 )
 def rapid_gc(
     D_sorted: NDArray[np.float32],
@@ -252,7 +252,7 @@ def rapid_gc(
     fastmath=NUMBA_FASTMATH,
     error_model=NUMBA_ERROR_MODEL,
     boundscheck=NUMBA_BOUNDSCHECK,
-    # cache=NUMBA_CACHE,
+    cache=NUMBA_CACHE,
 )
 def rapid_search(
     D_sorted: NDArray[np.float32],
@@ -357,7 +357,7 @@ def rapid_search(
     fastmath=NUMBA_FASTMATH,
     error_model=NUMBA_ERROR_MODEL,
     boundscheck=NUMBA_BOUNDSCHECK,
-    # cache=NUMBA_CACHE,
+    cache=NUMBA_CACHE,
 )
 def rapid_update(
     D: NDArray[np.float32],
@@ -466,7 +466,7 @@ def rapid_update(
     fastmath=NUMBA_FASTMATH,
     error_model=NUMBA_ERROR_MODEL,
     boundscheck=NUMBA_BOUNDSCHECK,
-    # cache=NUMBA_CACHE,
+    cache=NUMBA_CACHE,
 )
 def rapid_iteration(
     iteration: int,

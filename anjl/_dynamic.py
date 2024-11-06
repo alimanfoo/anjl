@@ -9,7 +9,7 @@ from ._util import (
     NUMBA_FASTMATH,
     NUMBA_ERROR_MODEL,
     NUMBA_BOUNDSCHECK,
-    # NUMBA_CACHE,
+    NUMBA_CACHE,
     FLOAT32_INF,
     UINTP_MAX,
     ensure_condensed_distance,
@@ -117,7 +117,7 @@ def dynamic_nj(
     fastmath=NUMBA_FASTMATH,
     error_model=NUMBA_ERROR_MODEL,
     boundscheck=NUMBA_BOUNDSCHECK,
-    # cache=NUMBA_CACHE,
+    cache=NUMBA_CACHE,
 )
 def dynamic_init(
     distance: NDArray[np.float32],
@@ -264,7 +264,7 @@ def dynamic_init(
     fastmath=NUMBA_FASTMATH,
     error_model=NUMBA_ERROR_MODEL,
     boundscheck=NUMBA_BOUNDSCHECK,
-    # cache=NUMBA_CACHE,
+    cache=NUMBA_CACHE,
 )
 def search_row(
     distance: NDArray[np.float32],
@@ -326,7 +326,7 @@ def search_row(
     fastmath=NUMBA_FASTMATH,
     error_model=NUMBA_ERROR_MODEL,
     boundscheck=NUMBA_BOUNDSCHECK,
-    # cache=NUMBA_CACHE,
+    cache=NUMBA_CACHE,
 )
 def dynamic_search(
     distance: NDArray[np.float32],
@@ -423,7 +423,7 @@ def dynamic_search(
     fastmath=NUMBA_FASTMATH,
     error_model=NUMBA_ERROR_MODEL,
     boundscheck=NUMBA_BOUNDSCHECK,
-    # cache=NUMBA_CACHE,  # cannot cache, though not clear why
+    # cache=NUMBA_CACHE,  # warning that cannot cache, though not clear why
     parallel=True,
 )
 def dynamic_search_parallel(
@@ -552,7 +552,7 @@ def dynamic_search_parallel(
     fastmath=NUMBA_FASTMATH,
     error_model=NUMBA_ERROR_MODEL,
     boundscheck=NUMBA_BOUNDSCHECK,
-    # cache=NUMBA_CACHE,
+    cache=NUMBA_CACHE,
 )
 def dynamic_update(
     distance: NDArray[np.float32],
@@ -624,7 +624,7 @@ def dynamic_update(
     fastmath=NUMBA_FASTMATH,
     error_model=NUMBA_ERROR_MODEL,
     boundscheck=NUMBA_BOUNDSCHECK,
-    # cache=NUMBA_CACHE,
+    cache=NUMBA_CACHE,
     parallel=True,
 )
 def dynamic_update_parallel(
@@ -699,7 +699,7 @@ def dynamic_update_parallel(
     fastmath=NUMBA_FASTMATH,
     error_model=NUMBA_ERROR_MODEL,
     boundscheck=NUMBA_BOUNDSCHECK,
-    # cache=NUMBA_CACHE,
+    # cache=NUMBA_CACHE,  # warning that cannot cache, though not clear why
 )
 def dynamic_iteration(
     iteration: np.uintp,

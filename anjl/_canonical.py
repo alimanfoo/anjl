@@ -8,7 +8,7 @@ from ._util import (
     NUMBA_FASTMATH,
     NUMBA_ERROR_MODEL,
     NUMBA_BOUNDSCHECK,
-    # NUMBA_CACHE,
+    NUMBA_CACHE,
     FLOAT32_INF,
     UINTP_MAX,
     ensure_condensed_distance,
@@ -96,7 +96,7 @@ def canonical_nj(
     fastmath=NUMBA_FASTMATH,
     error_model=NUMBA_ERROR_MODEL,
     boundscheck=NUMBA_BOUNDSCHECK,
-    # cache=NUMBA_CACHE,
+    cache=NUMBA_CACHE,
 )
 def canonical_search(
     distance: NDArray[np.float32],
@@ -169,7 +169,7 @@ def canonical_search(
     fastmath=NUMBA_FASTMATH,
     error_model=NUMBA_ERROR_MODEL,
     boundscheck=NUMBA_BOUNDSCHECK,
-    # cache=NUMBA_CACHE,
+    # cache=NUMBA_CACHE,  # warning that cannot cache, though not clear why
     parallel=True,
 )
 def canonical_search_parallel(
@@ -270,7 +270,7 @@ def canonical_search_parallel(
     fastmath=NUMBA_FASTMATH,
     error_model=NUMBA_ERROR_MODEL,
     boundscheck=NUMBA_BOUNDSCHECK,
-    # cache=NUMBA_CACHE,
+    cache=NUMBA_CACHE,
 )
 def canonical_update(
     distance: NDArray[np.float32],
@@ -340,7 +340,7 @@ def canonical_update(
     fastmath=NUMBA_FASTMATH,
     error_model=NUMBA_ERROR_MODEL,
     boundscheck=NUMBA_BOUNDSCHECK,
-    # cache=NUMBA_CACHE,
+    # cache=NUMBA_CACHE,  # warning that cannot cache, though not clear why
 )
 def canonical_iteration(
     iteration: np.uintp,
